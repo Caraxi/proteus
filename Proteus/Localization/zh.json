@@ -3463,6 +3463,14 @@
     "message": "{0:N0} skin points laid onto the new body.",
     "description": ""
   },
+  "Parts.Retarget.KeepShape": {
+    "message": "Keep shape",
+    "description": ""
+  },
+  "Parts.Retarget.KeepShape.Tip": {
+    "message": "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\npiece, turned and scaled evenly, instead of being bent to follow the body point by point.\nTicking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\nSmall closed pieces start ticked; untick any that should bend with the body.",
+    "description": ""
+  },
   "Parts.Retarget.ReplaceSkin": {
     "message": "Use the new body\u0027s skin",
     "description": ""
