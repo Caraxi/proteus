@@ -188,6 +188,7 @@ public class Gen3ToRueDiagTests(ITestOutputHelper output)
     /// <summary>A named mod's first readable chest size, checked to be the layout expected.</summary>
     private (string Mod, BodyOption Option, string Path)? PickMod(string startsWith, string layout)
     {
+        if (!Directory.Exists(Mods)) return null;
         foreach (string dir in Directory.GetDirectories(Mods).OrderBy(d => d))
         {
             if (!Path.GetFileName(dir).StartsWith(startsWith, StringComparison.OrdinalIgnoreCase)) continue;
@@ -261,6 +262,8 @@ public class Gen3ToRueDiagTests(ITestOutputHelper output)
     /// <summary>The first readable chest size of the first installed body whose models are drawn in that layout.</summary>
     private (string Mod, BodyOption Option, string Path)? Pick(string layout)
     {
+        // No mods on this machine (CI has no E: drive): nothing to pick, and the callers skip.
+        if (!Directory.Exists(Mods)) return null;
         foreach (string dir in Directory.GetDirectories(Mods).OrderBy(d => d))
         {
             BodySizeCatalog catalog;
