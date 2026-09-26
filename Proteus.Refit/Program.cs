@@ -33,7 +33,7 @@ internal static class Program
 {
     private const string Usage =
         """
-        Proteus.Refit --garment <xs.mdl> --body-root <body mod> --from <rel> --to <rel>=<label>[,...] --out-dir <dir>
+        Proteus.Refit --garment <xs.mdl> --body-root <body mod> --from <rel|auto> --to <rel>=<label>[,...] --out-dir <dir>
                       [--from-root <body mod the garment was made on>] [--uvmaps <Proteus plugin dir>]
                       [--slot _top] [--race 0201] [--legs-from <rel>]
                       [--legs <label>=<size word>,... | --legs-to <rel in the target mod>]
@@ -90,15 +90,19 @@ internal static class Program
         var src = acrossBodies ? BodySizeCatalog.Read(sourceRoot) : dst;
         var uvRemap = opts.TryGetValue("uvmaps", out var pluginDir) ? new UVRemapService(NullLog(), pluginDir) : null;
 
-        var from = Find(src, slot, Required(opts, "from"));
+        string fromArg = Required(opts, "from");
+        var garmentBytes = File.ReadAllBytes(garmentPath);
+        var garment = ModelPartReader.Read(garmentBytes)
+                   ?? throw new UsageException($"{garmentPath} could not be read as a model.");
+
+        string fromConfidence = "Given";
+        var from = fromArg == "auto"
+            ? DetectSource(src, slot, garment, garmentBytes, race, out fromConfidence)
+            : Find(src, slot, fromArg);
         var targets = Required(opts, "to").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                                           .Select(t => Pair(t, "--to"))
                                           .Select(t => (Label: t.Value, Option: Find(dst, slot, t.Key)))
                                           .ToList();
-
-        var garmentBytes = File.ReadAllBytes(garmentPath);
-        var garment = ModelPartReader.Read(garmentBytes)
-                   ?? throw new UsageException($"{garmentPath} could not be read as a model.");
         Directory.CreateDirectory(outDir);
 
         ushort? sourceMask = MaskOf(src, slot), targetMask = MaskOf(dst, slot);
@@ -165,6 +169,7 @@ internal static class Program
         {
             garment = garmentPath,
             from = from.Rel,
+            fromConfidence,
             acrossBodies,
             legs = legs == null
                 ? (object?)(legsSkipped == null ? null : new { skipped = legsSkipped })
@@ -173,6 +178,26 @@ internal static class Program
         };
         Console.WriteLine(JsonSerializer.Serialize(result, new JsonSerializerOptions { WriteIndented = true }));
         return 0;
+    }
+
+    /// <summary>
+    /// The body option the garment was made on, read from the garment's own body mesh the way the Studio does
+    /// (<see cref="BodySizeMatch.Rank"/>). For a mod made by hand, where nobody wrote down which of Neolithe's 114 chests
+    /// a size was fitted to. Refused unless the reading is at least a guess: refitting from the wrong body moves every
+    /// point by the difference between two bodies the garment never sat on.
+    /// </summary>
+    private static BodyOption DetectSource(BodySizeCatalog catalog, string slot, ModelParts garment, byte[] garmentBytes,
+                                           string? race, out string confidence)
+    {
+        var bones = new HashSet<string>(SecondSkinWriter.Parse(garmentBytes).BoneNames, StringComparer.Ordinal);
+        var ranking = BodySizeMatch.Rank(garment, catalog.For(slot, race), catalog.PathOf, bones);
+        confidence = ranking.Confidence.ToString();
+        if (ranking.Best is not { } best
+            || ranking.Confidence is BodySizeMatch.Confidence.NoBodyMesh or BodySizeMatch.Confidence.TooLittle
+                                  or BodySizeMatch.Confidence.Ambiguous)
+            throw new UsageException($"Could not tell which {slot} body of {catalog.ModRoot} the garment was made on " +
+                                     $"({ranking.Confidence}). Pass --from.");
+        return best.Option;
     }
 
     /// <summary>A body mod's own IMC mask for a slot, under its default settings — no player here to ask.</summary>
