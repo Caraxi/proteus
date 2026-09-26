@@ -673,6 +673,73 @@ public class BodyRetargetDiagTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// The packer's Rue+ sizes, against the author's own: "This Old Thing"'s Neolithe top refitted ACROSS body mods onto
+    /// the Rue+ chest of the same letter, the hem onto Watermelon Crushers A (which the author's own Rue M and L both
+    /// read as), the way Proteus.Refit runs it — layout maps on, weights rewritten for the Rue rig — and compared with
+    /// the author's hand-made Rue size. The refit must land closer to it than the Neolithe top left as it is.
+    /// </summary>
+    [Theory]
+    [InlineData("neolithe m", "rue m", "medium")]
+    [InlineData("neolithe l", "rue l", "large")]
+    public void Headless_refit_across_to_Rue_against_the_author(string fromSize, string toSize, string rueChest)
+    {
+        const string model = @"chara\equipment\e6255\model\c0201e6255_top.mdl";
+        string fromPath = Path.Combine(ThisOldThing, fromSize, model);
+        string toPath = Path.Combine(ThisOldThing, toSize, model);
+        if (!File.Exists(fromPath) || !File.Exists(toPath) || !Directory.Exists(NeolitheRoot) || !Directory.Exists(RueRoot))
+            return;
+
+        var fromBytes = File.ReadAllBytes(fromPath);
+        var authorFrom = ModelPartReader.Read(fromBytes)!;
+        var authorTo = ModelPartReader.Read(File.ReadAllBytes(toPath))!;
+
+        var neolithe = BodySizeCatalog.Read(NeolitheRoot);
+        var rue = BodySizeCatalog.Read(RueRoot);
+        var log = NSubstitute.Substitute.For<Dalamud.Plugin.Services.IPluginLog>();
+        var uvRemap = new UVRemapService(log, Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
+                                                                                @"..\..\..\..\..\Proteus")));
+
+        string RuePath(string slot, string folder)
+            => rue.PathOf(rue.For(slot).First(o => o.Rel.Contains(@"\" + folder + @"\", StringComparison.OrdinalIgnoreCase)));
+
+        var pairs = new List<BodyRetarget.SlotPair>();
+        foreach (var (slot, target) in new[] { ("_top", RuePath("_top", rueChest)),
+                                               ("_dwn", RuePath("_dwn", "watermelon crushers - a")) })
+        {
+            if (BodySizeMatch.Rank(authorFrom, neolithe.For(slot, "0201"), neolithe.PathOf).Best is not { } src) continue;
+            output.WriteLine($"{slot}: {src.Option.FullLabel} -> {Path.GetRelativePath(RueRoot, target)}");
+            string? refusal = BodyRetarget.BuildPair(slot, neolithe.PathOf(src.Option), target, slot, false,
+                                                     Mask(neolithe, slot), Mask(rue, slot), uvRemap, out var pair);
+            Assert.True(refusal == null, refusal);
+            pairs.Add(pair);
+        }
+        Assert.NotEmpty(pairs);
+
+        var planned = BodyRetarget.Plan(authorFrom, fromBytes, pairs, "_top", replaceSkin: true, acrossBodies: true,
+                                        cutHidden: true);
+        var refit = ModelPartReader.Read(planned.Model)!;
+        var r = planned.Report;
+        output.WriteLine($"snapped {r.Snapped:N0} ({r.SnapRate:P0}), missed {r.Missed:N0}, pushed {r.Pushed:N0} " +
+                         $"(worst {r.WorstPush * 1000f:F2} mm), worst move {r.WorstMove * 1000f:F2} mm, folded {r.Folded}");
+
+        output.WriteLine($"{"",-14}{"",8}{"mean",9}{"p95",9}{"max",9}   (mm, against the author's {toSize})");
+        foreach (bool skin in new[] { true, false })
+        {
+            string label = skin ? "body mesh" : "cloth";
+            var nothing = Errors(authorFrom, authorTo, skin, sameNumbering: false);
+            var ours = Errors(refit, authorTo, skin, sameNumbering: false);
+            output.WriteLine($"{label,-14}{"nothing",8}{Stats(nothing)}");
+            output.WriteLine($"{"",-14}{"refit",8}{Stats(ours)}");
+            Assert.True(ours.Average() < nothing.Average(),
+                        $"{label}: refit mean {ours.Average() * 1000f:F2} mm is no closer to the author's {toSize} " +
+                        $"than the Neolithe top left alone ({nothing.Average() * 1000f:F2} mm)");
+        }
+
+        static ushort? Mask(BodySizeCatalog c, string slot)
+            => BodyRetarget.ImcSlotName(slot) is { } equip ? ImcEntrySource.MaskFor(c.ModRoot, 0, equip, null) : null;
+    }
+
+    /// <summary>
     /// The same comparison with the body pair FORCED rather than detected, to separate "the detector picked the wrong
     /// bodies" from "the refit itself is wrong". Run over each reading of which Neolithe sizes the author meant.
     /// </summary>
