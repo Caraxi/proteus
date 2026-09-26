@@ -2420,7 +2420,8 @@ public sealed class PartsStrings
     public readonly string RetargetKeepShapeTip = Loc.Localize("Parts.Retarget.KeepShape.Tip",
         "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\n"
       + "piece, turned and scaled evenly, instead of being bent to follow the body point by point.\n"
-      + "Ticking a row with pieces keeps each piece separately, so a chain's links each keep their shape.");
+      + "Ticking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\n"
+      + "Small closed pieces start ticked; untick any that should bend with the body.");
 
     public readonly string RetargetReplaceSkin = Loc.Localize("Parts.Retarget.ReplaceSkin", "Use the new body's skin")
                                                + "###partsRetargetReplaceSkin";

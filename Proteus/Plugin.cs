@@ -25,7 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
 
     /// <summary>Hand-maintained; bump it for in-game testing. <see cref="BuildStamp"/> is the one that can't go stale.</summary>
-    public const int BuildNumber = 1074;
+    public const int BuildNumber = 1079;
 
     /// <summary>
     /// Which set of release notes is current. Raise it when a release has something new to say: the window
@@ -313,11 +313,50 @@ public sealed class Plugin : IDalamudPlugin
     {
         // Before the window system, and unconditionally: Dalamud stops calling a CLOSED window's Draw, which would strand an import.
         statusWindow.TickImport();
+        PollDevCommand();
         liveMesh.Draw();
         // Before the windows: the Studio tab reads this frame's stroke from it.
         liveBrush.Update();
         windowSystem.Draw();
     }
+
+    /// <summary>
+    /// Dev builds only: a <c>/proteus</c> command left in <c>%TEMP%\proteus-dev-command.txt</c> is run and the file
+    /// deleted, one line per command — so a tool outside the game can ask for a pose dump without typing into chat.
+    /// Polled at most twice a second from the draw, which is the main thread the commands expect.
+    /// </summary>
+    private void PollDevCommand()
+    {
+        if (!PluginInterface.IsDev) return;
+        long now = Environment.TickCount64;
+        if (now < nextDevPoll) return;
+        nextDevPoll = now + 500;
+        var file = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "proteus-dev-command.txt");
+        if (!System.IO.File.Exists(file)) return;
+        string[] lines;
+        try
+        {
+            lines = System.IO.File.ReadAllLines(file);
+            System.IO.File.Delete(file);
+        }
+        catch (Exception ex) when (ex is System.IO.IOException or UnauthorizedAccessException)
+        {
+            // Still being written, or a file this process may not delete: never out of Draw, which would stop every
+            // window drawing. A file that stays stuck is said once every ten seconds rather than twice a second.
+            Log.Warning("[Proteus] dev command file unreadable: {0}", ex.Message);
+            nextDevPoll = now + 10_000;
+            return;
+        }
+        foreach (var line in lines)
+            if (line.Trim() is { Length: > 0 } command)
+            {
+                Log.Information("[Proteus] dev command: {0}", command);
+                try { OnCommand(CommandName, command); }
+                catch (Exception ex) { Log.Error(ex, "[Proteus] dev command failed: {0}", command); }
+            }
+    }
+
+    private long nextDevPoll;
 
     private void OpenMainUi() => statusWindow.Show();
 
@@ -333,6 +372,37 @@ public sealed class Plugin : IDalamudPlugin
         if (a.StartsWith("livemesh", StringComparison.OrdinalIgnoreCase))
         {
             ChatGui.Print($"[Proteus] {liveMesh.Command(a[8..])}");
+            return;
+        }
+
+        // "/proteus posedump [dir]": the skeleton as it stands, the deformer and every drawn model, for posing offline.
+        if (a.StartsWith("posedump", StringComparison.OrdinalIgnoreCase))
+        {
+            var dir = a.Length > 8 && a[8..].Trim() is { Length: > 0 } given
+                ? given
+                : System.IO.Path.Combine(System.IO.Path.GetTempPath(), "proteus-pose");
+            ChatGui.Print($"[Proteus] {LivePoseDump.Dump(ObjectTable, penumbra, DataManager, Log, dir)}");
+            return;
+        }
+
+        // "/proteus tempmodel <game path> <file>" draws a model file in place of a game path through a Penumbra
+        // temporary mod (nothing written to any mod); "/proteus tempmodel off" takes it away. Both redraw.
+        if (a.StartsWith("tempmodel", StringComparison.OrdinalIgnoreCase))
+        {
+            const string tag = "Proteus dev model";
+            var rest = a[9..].Trim();
+            string said;
+            if (rest.Equals("off", StringComparison.OrdinalIgnoreCase))
+                said = penumbra.RemovePlayerTemporaryMod(tag, 99) ? "tempmodel removed" : "tempmodel: nothing to remove";
+            else if (rest.IndexOf(' ') is var space and > 0 && System.IO.File.Exists(rest[(space + 1)..].Trim()))
+                said = penumbra.SetPlayerTemporaryMod(tag, new() { [rest[..space]] = rest[(space + 1)..].Trim() }, 99)
+                    ? $"tempmodel: {rest[..space]} <- {rest[(space + 1)..].Trim()}"
+                    : "tempmodel: Penumbra refused it";
+            else
+                said = "tempmodel: /proteus tempmodel <game path> <file>, or off";
+            penumbra.RedrawPlayer();
+            Log.Information("[Proteus] {0}", said);
+            ChatGui.Print($"[Proteus] {said}");
             return;
         }
 

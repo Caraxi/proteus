@@ -39,6 +39,28 @@ internal static partial class BodyRetarget
     internal const float WeightFull = 0.02f;
 
     /// <summary>
+    /// How near the garment's own skin must have been, as authored, for a cloth vertex to take the change against IT
+    /// rather than against the old body mod (5 mm). Cloth lying on its skin was weighted off that skin; further out, in
+    /// the crease of an armhole, the garment's skin and the new body can answer from opposite sides of the crease, and
+    /// the change between two different places is noise — measured on "pop" at 2 cm: 50 armhole vertices over a tenth
+    /// apart from the skin under them, against 16 measured against the old body.
+    /// </summary>
+    internal const float OwnSkinReachDefault = 0.005f;
+
+    /// <summary>
+    /// How near its own skin cloth must have been for "rigged like the skin under it" to be read off it (2 cm).
+    /// Measured posed, on "pop" standing as the character stood in game: skin through the upper back 1,356 px with the
+    /// change taken against the old body, 577 against the garment's own skin within 5 mm, 93 copying within 2 cm — the
+    /// unrefitted top on its own skin draws 40. 1 cm left 123; 4 cm was no better than 2.
+    /// </summary>
+    internal const float CopyReachDefault = 0.02f;
+
+    /// <summary>How alike (summed difference, 0.2 = 10% of the weight) cloth's body weights and its own skin's under
+    /// it must be for the author to have copied them. 0.4 drew a little less skin through (71 px against 93) but takes
+    /// cloth rigged a fifth apart from its skin for a copy; kept at the stricter.</summary>
+    internal const float CopyToleranceDefault = 0.2f;
+
+    /// <summary>
     /// New skinning for a garment's cloth, from the body it is being refitted onto.
     /// </summary>
     /// <param name="PerMesh">By the garment's mesh index: per vertex of that mesh, the influences it takes, or null to
@@ -119,10 +141,23 @@ internal static partial class BodyRetarget
         if (ModelSkinReader.Read(garment, null, null) is not { } own || own.VertexCount * 3 != model.Positions.Length)
             return null;
         // Where each vertex sat on the old body: the authored garment, when it lines up vertex for vertex.
-        float[] wasAt = before != null && ModelPartReader.Read(before) is { } authored
-                        && authored.Positions.Length == model.Positions.Length
-            ? authored.Positions
-            : model.Positions;
+        var authored = before != null ? ModelPartReader.Read(before) : null;
+        bool linesUp = authored != null && authored.Positions.Length == model.Positions.Length;
+        float[] wasAt = linesUp ? authored!.Positions : model.Positions;
+
+        // The garment's OWN skin as authored, which is the old body its cloth was actually weighted against. An author
+        // who reshapes the skin under a garment reweights it too, and the cloth follows that skin rather than the body
+        // mod's: "pop" matches its own skin's weights everywhere on the back (0% apart) and YAB's only to within 12%.
+        // Measured against YAB, the change handed the cloth those 12% back on top of Neolithe's weights while the skin
+        // beside it took Neolithe's outright, and the two parted in a pose — skin through the back of the shirt.
+        List<(BodySurface Surface, XivLiveMesh.SkinnedMesh Skin)>? ownSkin = null;
+        var tuned = Tuned;
+        if (linesUp && sources != null && !tuned.NoOwnSkinWeights && ModelSkinReader.Read(before!, null, null) is { } authoredSkin
+            && authoredSkin.VertexCount * 3 == authored!.Positions.Length)
+        {
+            var surface = new BodySurface(authored, BodySurface.CellFor(MeanEdgeOf(authored)));
+            if (!surface.IsEmpty) ownSkin = [(surface, authoredSkin)];
+        }
 
         int vc = model.Positions.Length / 3;
         var result = new (string Bone, float W)[]?[vc];
@@ -143,9 +178,36 @@ internal static partial class BodyRetarget
                 // Both bodies have to be under the vertex for the change between them to mean anything. With only the
                 // old one missing there is nothing to compare against, and taking the new body's weights outright
                 // would re-rig cloth that never sat on it.
-                if (Nearest(sources, was, out float oldFar) is not { Length: > 0 } oldBody) continue;
-                far = MathF.Max(far, oldFar);
-                if (Change(mine, oldBody, body, bodyBones) is { Count: > 0 } changed) body = [.. changed];
+                float ownFar = float.MaxValue;
+                var fromOwn = ownSkin != null ? Nearest(ownSkin, was, out ownFar) : null;
+                if (fromOwn is { Length: > 0 } && ownFar <= tuned.CopyReach
+                    && Difference([.. mine.Where(i => bodyBones.Contains(i.Bone))], [.. fromOwn]) <= tuned.CopyTolerance)
+                {
+                    // Rigged as its own skin under it: rigged as the new skin under it, outright. Skin and cloth that
+                    // moved as one on the author's body move as one on the new body; the change between two lookups
+                    // can land either side of a crease and leave them apart. Faded by the FARTHER of the two, as the
+                    // change is: the new body has to be under the cloth too, or a stocking refitted on the feet slot
+                    // alone would take the ankle's weights half a metre up the thigh (see WeightReach).
+                    far = MathF.Max(far, ownFar);
+                }
+                else
+                {
+                    // Faded by the distance to whichever old surface the weights were read from.
+                    float oldFar;
+                    (string Bone, float W)[]? oldBody;
+                    if (fromOwn is { Length: > 0 } && ownFar <= tuned.OwnSkinReach)
+                    {
+                        oldBody = fromOwn;
+                        oldFar = ownFar;
+                    }
+                    else
+                    {
+                        oldBody = Nearest(sources, was, out oldFar);
+                    }
+                    if (oldBody is not { Length: > 0 }) continue;
+                    far = MathF.Max(far, oldFar);
+                    if (Change(mine, oldBody, body, bodyBones) is { Count: > 0 } changed) body = [.. changed];
+                }
             }
 
             if (Combine(mine, body, bodyBones, out bool cut) is not { } combined) continue;

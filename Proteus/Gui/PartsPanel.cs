@@ -1271,8 +1271,31 @@ public sealed class PartsPanel
     /// <summary>The open model's holds for Body size whatever the tool.</summary>
     private HashSet<string> RetargetHolds => LockSet(heldParts);
 
-    /// <summary>The open model's "keep shape" parts for Body size.</summary>
-    private HashSet<string> RetargetShapes => LockSet(keepShapeParts);
+    /// <summary>
+    /// The open model's "keep shape" parts for Body size. The first time a model is asked about, its pieces that look
+    /// hard (<see cref="BodyRetarget.HardPieces"/>) start ticked — rings, bands, chain links — and the user unticks
+    /// any that should bend after all; from then on the set is theirs.
+    /// </summary>
+    private HashSet<string> RetargetShapes
+    {
+        get
+        {
+            if (keepShapeParts.TryGetValue(ViewportKey, out var set)) return set;
+            // Not remembered until there is a model to look at, or a model still loading would start with nothing.
+            if (parts is not { } model) return new HashSet<string>(StringComparer.Ordinal);
+            set = new HashSet<string>(BodyRetarget.HardPieces(model), StringComparer.Ordinal);
+            // A row whose pieces are ALL hard is ticked as the row, the way a user ticking it would leave it.
+            foreach (var row in model.Parts.Where(p => p.Island < 0))
+            {
+                var pieces = model.Parts.Where(p => p.Island >= 0 && p.Mesh == row.Mesh && p.Submesh == row.Submesh).ToList();
+                if (pieces.Count == 0 || !pieces.All(p => set.Contains(p.Label))) continue;
+                foreach (var piece in pieces) set.Remove(piece.Label);
+                set.Add(row.Label);
+            }
+            keepShapeParts[ViewportKey] = set;
+            return set;
+        }
+    }
 
     private bool KeepsShape(ModelPart part)
         => RetargetShapes.Contains(part.Label) || (ParentOf(part) is { } parent && RetargetShapes.Contains(parent.Label));

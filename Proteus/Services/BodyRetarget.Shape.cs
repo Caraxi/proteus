@@ -7,6 +7,34 @@ namespace Proteus.Services;
 
 internal static partial class BodyRetarget
 {
+    /// <summary>
+    /// Knobs a diagnostic can turn to compare refits, each defaulting to what a refit really uses.
+    /// </summary>
+    /// <param name="NoFollow">Switch <see cref="FollowLaidSkin"/> off.</param>
+    /// <param name="NoOwnSkinWeights">Take the weight change against the old body mod everywhere, never the
+    /// garment's own skin.</param>
+    internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
+                                  float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
+                                  float CopyTolerance = CopyToleranceDefault);
+
+    private static readonly Tuning DefaultTuning = new();
+
+    /// <summary>Per logical call, not per process: two tests refitting at once on the test runner's threads each see
+    /// only their own, and a task a refit starts sees its caller's.</summary>
+    private static readonly System.Threading.AsyncLocal<Tuning?> tuning = new();
+
+    /// <summary>The knobs in force for this refit.</summary>
+    internal static Tuning Tuned => tuning.Value ?? DefaultTuning;
+
+    /// <summary>Run <paramref name="refit"/> with <paramref name="with"/> in force, and only it.</summary>
+    internal static T WithTuning<T>(Tuning with, Func<T> refit)
+    {
+        var was = tuning.Value;
+        tuning.Value = with;
+        try { return refit(); }
+        finally { tuning.Value = was; }
+    }
+
     /// <summary>Cloth this close to the garment's own skin follows the skin's correction completely (10 mm).</summary>
     internal const float FollowFull = 0.01f;
 
@@ -58,6 +86,82 @@ internal static partial class BodyRetarget
         }
         foreach (var (n, by) in add) nodeDelta[n] = ToVec(ToVector(nodeDelta[n]) + by);
         return add.Count;
+    }
+
+    /// <summary>The share of a piece's edges that may be open and still count as a closed solid (5%): the underwire of
+    /// "pop" leaves its two ends open, 40 edges of 1,460.</summary>
+    internal const float HardOpenShare = 0.05f;
+
+    /// <summary>
+    /// The largest a piece may be and still be taken for hard without asking (13 cm): a ring, a band round the arm, a
+    /// buckle. Past this a closed piece is more likely thickened cloth that has to drape. Measured: the largest hard
+    /// pieces seen are 12.2-12.4 cm ("pop"'s arm bands, a hoodie's drawstrings, a skirt's side straps); the smallest
+    /// closed cloth is 13.9 cm (the upper tiers of "Ruffles", solidified ruffles round the hips). Neither how a piece is
+    /// rigged nor how far it sits off the skin tells the two apart — the bands blend three bones, the ruffles follow one.
+    /// </summary>
+    internal const float HardMaxSize = 0.13f;
+
+    /// <summary>
+    /// The pieces of a garment that look hard — metal, not cloth — and so should keep their shape through a refit
+    /// unless the user says otherwise: a separate piece (an island the reader split off its submesh), closed or all but
+    /// closed, and no bigger than <see cref="HardMaxSize"/>.
+    /// <para/>
+    /// Cloth is a sheet with hems, so its open edges run all round it; a ring, a band, a chain link or a buckle is
+    /// modelled as a solid. Material says nothing: "pop" draws its arm bands with the shirt's own material. Measured on
+    /// "pop": its four arm bands, 176 chain links and underwire pieces are closed or 3% open; its cloth is not split
+    /// into pieces at all, and its belt is one whole submesh 21 cm across.
+    /// </summary>
+    /// <returns>The labels of the pieces that look hard.</returns>
+    internal static List<string> HardPieces(ModelParts garment)
+    {
+        var labels = new List<string>();
+        foreach (var part in garment.Parts)
+        {
+            if (part.Island < 0 || SecondSkinWriter.IsBodySkinMaterial(part.Material)) continue;
+            if (IsHard(garment, part)) labels.Add(part.Label);
+        }
+        return labels;
+    }
+
+    private static bool IsHard(ModelParts garment, ModelPart part)
+    {
+        var verts = new List<int>();
+        var local = new Dictionary<int, int>();
+        foreach (int v in part.Triangles)
+            if (v >= 0 && v * 3 + 2 < garment.Positions.Length && local.TryAdd(v, verts.Count)) verts.Add(v);
+        if (verts.Count < 4) return false;
+
+        var at = new Vec3[verts.Count];
+        Vector3 lo = new(float.MaxValue), hi = new(float.MinValue);
+        for (int i = 0; i < verts.Count; i++)
+        {
+            int v = verts[i];
+            var p = new Vector3(garment.Positions[v * 3], garment.Positions[v * 3 + 1], garment.Positions[v * 3 + 2]);
+            at[i] = ToVec(p);
+            lo = Vector3.Min(lo, p);
+            hi = Vector3.Max(hi, p);
+        }
+        var size = hi - lo;
+        if (MathF.Max(size.X, MathF.Max(size.Y, size.Z)) > HardMaxSize) return false;
+
+        // Open edges once welded by position: a uv seam splits vertices without opening the surface.
+        var node = MeshMath.WeldByPosition(at, out _);
+        var uses = new Dictionary<(int, int), int>();
+        for (int t = 0; t + 2 < part.Triangles.Length; t += 3)
+            for (int k = 0; k < 3; k++)
+            {
+                if (!local.TryGetValue(part.Triangles[t + k], out int ia)
+                    || !local.TryGetValue(part.Triangles[t + (k + 1) % 3], out int ib)) continue;
+                int a = node[ia], b = node[ib];
+                if (a == b) continue;
+                var key = a < b ? (a, b) : (b, a);
+                uses[key] = uses.GetValueOrDefault(key) + 1;
+            }
+        if (uses.Count == 0) return false;
+        int open = 0;
+        foreach (int c in uses.Values)
+            if (c == 1) open++;
+        return open <= HardOpenShare * uses.Count;
     }
 
     /// <summary>
