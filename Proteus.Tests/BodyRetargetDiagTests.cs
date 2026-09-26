@@ -610,6 +610,69 @@ public class BodyRetargetDiagTests(ITestOutputHelper output)
     }
 
     /// <summary>
+    /// What the mod packer generates: the author's XS refitted UP to S, M and L the way Proteus.Refit runs it — pairs
+    /// through <see cref="BodyRetarget.BuildPair"/> with the body mod's default variant masks, the skin swapped — and
+    /// compared with the author's own hand-made sizes. The refit must land closer to the author than shipping the XS
+    /// unchanged, on the body mesh and on the cloth.
+    /// </summary>
+    [Theory]
+    [InlineData("neolithe s")]
+    [InlineData("neolithe m")]
+    [InlineData("neolithe l")]
+    public void Headless_refit_up_from_the_author_s_XS(string toSize)
+    {
+        const string model = @"chara\equipment\e6255\model\c0201e6255_top.mdl";
+        string fromPath = Path.Combine(ThisOldThing, "neolithe xs", model);
+        string toPath = Path.Combine(ThisOldThing, toSize, model);
+        if (!File.Exists(fromPath) || !File.Exists(toPath) || !Directory.Exists(NeolitheRoot)) return;
+
+        var fromBytes = File.ReadAllBytes(fromPath);
+        var authorFrom = ModelPartReader.Read(fromBytes)!;
+        var authorTo = ModelPartReader.Read(File.ReadAllBytes(toPath))!;
+
+        var catalog = BodySizeCatalog.Read(NeolitheRoot);
+        var pairs = new List<BodyRetarget.SlotPair>();
+        foreach (string slot in new[] { "_top", "_dwn" })
+        {
+            var options = catalog.For(slot, "0201");
+            if (BodySizeMatch.Rank(authorFrom, options, catalog.PathOf).Best is not { } src
+                || BodySizeMatch.Rank(authorTo, options, catalog.PathOf).Best is not { } dst)
+                continue;
+            output.WriteLine($"{slot}: {src.Option.FullLabel} -> {dst.Option.FullLabel}");
+            if (src.Option.Rel == dst.Option.Rel) continue;
+
+            ushort? mask = BodyRetarget.ImcSlotName(slot) is { } equip
+                ? ImcEntrySource.MaskFor(catalog.ModRoot, 0, equip, null)
+                : null;
+            string? refusal = BodyRetarget.BuildPair(slot, catalog.PathOf(src.Option), catalog.PathOf(dst.Option), slot,
+                                                     false, mask, mask, null, out var pair);
+            Assert.True(refusal == null, refusal);
+            pairs.Add(pair);
+        }
+        Assert.NotEmpty(pairs);
+
+        var planned = BodyRetarget.Plan(authorFrom, fromBytes, pairs, "_top", replaceSkin: true, cutHidden: true);
+        var refit = ModelPartReader.Read(planned.Model)!;
+        var r = planned.Report;
+        output.WriteLine($"snapped {r.Snapped:N0} ({r.SnapRate:P0}), pushed {r.Pushed:N0} " +
+                         $"(worst {r.WorstPush * 1000f:F2} mm), worst move {r.WorstMove * 1000f:F2} mm, folded {r.Folded}");
+
+        // The skin swap rebuilds the model, so the author's sizes and the refit need not share a numbering.
+        output.WriteLine($"{"",-14}{"",8}{"mean",9}{"p95",9}{"max",9}   (mm, against the author's {toSize})");
+        foreach (bool skin in new[] { true, false })
+        {
+            string label = skin ? "body mesh" : "cloth";
+            var nothing = Errors(authorFrom, authorTo, skin, sameNumbering: false);
+            var ours = Errors(refit, authorTo, skin, sameNumbering: false);
+            output.WriteLine($"{label,-14}{"nothing",8}{Stats(nothing)}");
+            output.WriteLine($"{"",-14}{"refit",8}{Stats(ours)}");
+            Assert.True(ours.Average() < nothing.Average(),
+                        $"{label}: refit mean {ours.Average() * 1000f:F2} mm is no closer to the author's {toSize} " +
+                        $"than the XS left alone ({nothing.Average() * 1000f:F2} mm)");
+        }
+    }
+
+    /// <summary>
     /// The same comparison with the body pair FORCED rather than detected, to separate "the detector picked the wrong
     /// bodies" from "the refit itself is wrong". Run over each reading of which Neolithe sizes the author meant.
     /// </summary>

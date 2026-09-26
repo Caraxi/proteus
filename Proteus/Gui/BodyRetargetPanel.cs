@@ -1288,7 +1288,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
             {
                 try
                 {
-                    return Build(sourcePath, targetPath, name, male, masks, out _, out _, out _, out _, out _) ?? "";
+                    return Build(sourcePath, targetPath, name, male, masks, out _) ?? "";
                 }
                 catch (Exception ex)
                 {
@@ -1333,10 +1333,9 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 var shared = new List<BodyRetarget.SlotPair>();
                 foreach (var (slot, sourcePath, targetPath, name, masks) in others)
                 {
-                    if (Build(sourcePath, targetPath, name, male, masks, out var built, out var target, out var body,
-                              out var sourceBody, out var hidden) is { } refusal)
+                    if (Build(sourcePath, targetPath, name, male, masks, out var pair) is { } refusal)
                         return new PlanResult(key, null, refusal);
-                    shared.Add(new BodyRetarget.SlotPair(slot, built!, target!, body, sourceBody, hidden));
+                    shared.Add(pair);
                 }
 
                 // A submesh's triangles already include every island of it, so the labels alone are enough — the
@@ -1349,14 +1348,10 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 var results = new List<(BodyOption, BodyRetarget.Planned)>();
                 foreach (var (option, targetPath) in targets)
                 {
-                    if (Build(garmentSource, targetPath, garmentName, male, garmentMasks, out var built, out var target,
-                              out var body, out var sourceBody, out var hidden) is { } refusal)
+                    if (Build(garmentSource, targetPath, garmentName, male, garmentMasks, out var pair) is { } refusal)
                         return new PlanResult(key, null, targets.Count > 1 ? $"{option.Label}: {refusal}" : refusal);
 
-                    var pairs = new List<BodyRetarget.SlotPair>
-                    {
-                        new(garmentSlot, built!, target!, body, sourceBody, hidden),
-                    };
+                    var pairs = new List<BodyRetarget.SlotPair> { pair };
                     pairs.AddRange(shared);
                     results.Add((option, BodyRetarget.Plan(garment, bytes, pairs, garmentSlot, held: held,
                                                            replaceSkin: layOnBody, acrossBodies: acrossBodies,
@@ -1374,38 +1369,16 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
     }
 
     /// <summary>
-    /// Read a source and target body and work out which point of one is which point of the other — vertex for vertex
-    /// when they are the same mesh, by texture coordinate otherwise (see <see cref="BodyCorrespondence"/>). Null on
-    /// success; otherwise the reason, worded for the user. Worker thread only.
+    /// One slot's pair — see <see cref="BodyRetarget.BuildPair"/>. Null on success; otherwise the reason, worded for the
+    /// user. Worker thread only.
     /// </summary>
-    /// <param name="targetBytes">The target body's file, which swapping the garment's skin copies the body's skin
-    /// out of.</param>
-    /// <param name="sourceBytes">The source body's file, which says which bones the old body rigs.</param>
     /// <param name="male">The garment is a man's, and so both bodies are: every option list is filtered to its sex.</param>
     /// <param name="masks">Each body mod's IMC mask for this slot (see <see cref="VariantMask"/>): both bodies are read
     /// without the variant parts their mods do not draw.</param>
-    /// <param name="targetHidden">The target body's undrawn variant tags, for the skin swap.</param>
     private string? Build(string sourcePath, string targetPath, string name, bool male, Masks masks,
-                          out IBodyCorrespondence? correspondence, out ModelParts? target, out byte[] targetBytes,
-                          out byte[] sourceBytes, out IReadOnlySet<string>? targetHidden)
-    {
-        correspondence = null;
-        target = null;
-        targetHidden = null;
-
-        sourceBytes = File.ReadAllBytes(sourcePath);
-        targetBytes = File.ReadAllBytes(targetPath);
-        var source = ModelPartReader.Read(sourceBytes);
-        target = ModelPartReader.Read(targetBytes);
-        if (source == null || target == null) return string.Format(Strings.Parts.RetargetUnreadableFmt, name);
-        source = Drawn(source, masks.Slot, masks.Source, out _);
-        target = Drawn(target, masks.Slot, masks.Target, out targetHidden);
-
-        return BodyCorrespondence.TryBuild(source, Uv(sourceBytes), target, Uv(targetBytes), name,
-                                           out correspondence, out string refusal, uvRemap, male)
-                   ? null
-                   : refusal;
-    }
+                          out BodyRetarget.SlotPair pair)
+        => BodyRetarget.BuildPair(masks.Slot, sourcePath, targetPath, name, male, masks.Source, masks.Target, uvRemap,
+                                  out pair);
 
     /// <summary>
     /// The IMC attribute mask a body mod gives its model in <paramref name="slot"/>, under the player's own choice of
@@ -1428,18 +1401,6 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
 
     private Masks MasksFor(string slot)
         => new(slot, VariantMask(SourceDir, SourceCatalog, slot), VariantMask(bodyDir, catalog, slot));
-
-    /// <summary>A body model without the variant parts its mod does not draw, and the tags of those parts.</summary>
-    private static ModelParts Drawn(ModelParts body, string slot, ushort? mask, out IReadOnlySet<string>? hidden)
-    {
-        hidden = mask is { } m ? BodyRetarget.UndrawnVariants(body.AttributeNames, slot, m) : null;
-        return BodyRetarget.Without(body, hidden);
-    }
-
-    private static float[] Uv(byte[] mdl)
-        => SecondSkinWriter.TryReadLod0Geometry(mdl, out _, out var uv, out _, out _, out _, false, false, null)
-            ? uv
-            : [];
 
     /// <summary>
     /// The mod this garment's refits live in, or null when there is none yet.
