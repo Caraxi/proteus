@@ -91,6 +91,10 @@ public sealed class PartsPanel
     /// </summary>
     private readonly Dictionary<string, HashSet<string>> heldParts = [];
 
+    /// <summary>Parts Body size moves whole — turned and shifted onto the new body, never bent to it — keyed like
+    /// <see cref="heldParts"/>. For metal: a ring, a buckle, a chain's links.</summary>
+    private readonly Dictionary<string, HashSet<string>> keepShapeParts = [];
+
     /// <summary>For each vertex of <see cref="parts"/>, the index in its part list of the most specific part it
     /// belongs to (its island where the submesh lists islands, else the submesh); -1 for none.</summary>
     private int[] partOfVertex = [];
@@ -1267,6 +1271,32 @@ public sealed class PartsPanel
     /// <summary>The open model's holds for Body size whatever the tool.</summary>
     private HashSet<string> RetargetHolds => LockSet(heldParts);
 
+    /// <summary>The open model's "keep shape" parts for Body size.</summary>
+    private HashSet<string> RetargetShapes => LockSet(keepShapeParts);
+
+    private bool KeepsShape(ModelPart part)
+        => RetargetShapes.Contains(part.Label) || (ParentOf(part) is { } parent && RetargetShapes.Contains(parent.Label));
+
+    /// <summary>Mark or unmark one part to keep its shape; a submesh covers its islands, as a hold does.</summary>
+    private void ToggleKeepShape(ModelPart part)
+    {
+        if (parts is not { } model) return;
+        var set = RetargetShapes;
+        var siblings = model.Parts.Where(p => p.Island >= 0 && p.Mesh == part.Mesh && p.Submesh == part.Submesh);
+        if (!KeepsShape(part))
+        {
+            set.Add(part.Label);
+            if (part.Island < 0)
+                foreach (var island in siblings) set.Remove(island.Label);
+        }
+        else if (!set.Remove(part.Label) && ParentOf(part) is { } parent)
+        {
+            // One island of a marked submesh: the submesh gives way to every other island of it.
+            set.Remove(parent.Label);
+            foreach (var sibling in siblings.Where(p => p.Label != part.Label)) set.Add(sibling.Label);
+        }
+    }
+
     /// <summary>One set of labels for the open model, created on first use.</summary>
     private HashSet<string> LockSet(Dictionary<string, HashSet<string>> byModel)
     {
@@ -1909,6 +1939,18 @@ public sealed class PartsPanel
                     ImGui.SetTooltip(ps.BrushLockSkinTip);
                 else if (refitting && skin && ImGui.IsItemHovered())
                     ImGui.SetTooltip(ps.RetargetLockSkinTip);
+
+                // Moved whole, or bent to the body: only for cloth the refit moves at all.
+                if (refitting && !skin)
+                {
+                    ImGui.SameLine();
+                    bool keep = moves && KeepsShape(part);
+                    using (ImRaii.Disabled(!moves))
+                        if (ImGui.Checkbox($"{ps.RetargetKeepShape}##ks_{part.Label}", ref keep))
+                            ToggleKeepShape(part);
+                    if (ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled))
+                        ImGui.SetTooltip(ps.RetargetKeepShapeTip);
+                }
             }
             else
             {
@@ -2569,7 +2611,8 @@ public sealed class PartsPanel
                 refreshModelsPending = true;
             },
             Held: RetargetHolds,
-            SaveMod: (bodyName, create) => RefitModFor(bodyName, create)));
+            SaveMod: (bodyName, create) => RefitModFor(bodyName, create),
+            KeepShape: RetargetShapes));
     }
 
     /// <summary>

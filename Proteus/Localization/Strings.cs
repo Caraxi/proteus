@@ -2415,6 +2415,13 @@ public sealed class PartsStrings
         "This is the garment's own body skin. Holding it keeps it at the old size, so the new body can show "
       + "through or gap at the edges.");
 
+    public readonly string RetargetKeepShape = Loc.Localize("Parts.Retarget.KeepShape", "Keep shape");
+
+    public readonly string RetargetKeepShapeTip = Loc.Localize("Parts.Retarget.KeepShape.Tip",
+        "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\n"
+      + "piece, turned and scaled evenly, instead of being bent to follow the body point by point.\n"
+      + "Ticking a row with pieces keeps each piece separately, so a chain's links each keep their shape.");
+
     public readonly string RetargetReplaceSkin = Loc.Localize("Parts.Retarget.ReplaceSkin", "Use the new body's skin")
                                                + "###partsRetargetReplaceSkin";
 

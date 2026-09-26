@@ -595,7 +595,7 @@ public static partial class SecondSkinWriter
     /// rather than an SVD - iterating M -> (M + M^-T)/2 converges on the orthogonal factor in a handful
     /// of steps and needs nothing but a 3x3 inverse.
     /// </summary>
-    private static float[] BestRotation(IReadOnlyList<Vec3> from, IReadOnlyList<Vec3> to,
+    internal static float[] BestRotation(IReadOnlyList<Vec3> from, IReadOnlyList<Vec3> to,
                                         Vec3 cFrom, Vec3 cTo)
     {
         var h = new float[9];

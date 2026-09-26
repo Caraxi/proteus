@@ -56,12 +56,14 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
     /// <para/>
     /// Penumbra IPC, so the tab answers it on the framework thread and the panel never calls it from a worker.
     /// </param>
+    /// <param name="KeepShape">Labels of the parts marked "keep shape": each piece of them moves whole, turned and
+    /// shifted onto the new body but never bent — see <see cref="ShapePieces"/>.</param>
     internal readonly record struct RetargetContext(
         string? ModRoot, string? ModDir, string ModelRel, string GamePath, string ModelLabel,
         ModelParts Garment, byte[] GarmentBytes, IReadOnlyList<PenumbraModMeta.Redirect> Redirects,
         Action FlushPending, Func<byte[], bool> PushPreview, Action EndPreview,
         Action<string, bool> SetStatus, Action<string?, Action<string>?> AfterModChange, IReadOnlyCollection<string> Held,
-        Func<string, bool, (string Root, string Dir)?>? SaveMod = null)
+        Func<string, bool, (string Root, string Dir)?>? SaveMod = null, IReadOnlyCollection<string>? KeepShape = null)
     {
         /// <summary>
         /// The garment is the game's own: no mod holds it, and none holds the refit either until
@@ -1316,6 +1318,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         var garment = ctx.Garment;
         var bytes = ctx.GarmentBytes;
         var heldLabels = new HashSet<string>(ctx.Held, StringComparer.Ordinal);
+        var shapeLabels = new HashSet<string>(ctx.KeepShape ?? [], StringComparer.Ordinal);
         bool layOnBody = replaceSkin;
         bool cut = cutHidden;
         bool clear = clearBody;
@@ -1344,6 +1347,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 foreach (var part in garment.Parts)
                     if (heldLabels.Contains(part.Label))
                         held.UnionWith(part.Triangles);
+                var pieces = ShapePieces(garment, shapeLabels);
 
                 var results = new List<(BodyOption, BodyRetarget.Planned)>();
                 foreach (var (option, targetPath) in targets)
@@ -1355,7 +1359,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                     pairs.AddRange(shared);
                     results.Add((option, BodyRetarget.Plan(garment, bytes, pairs, garmentSlot, held: held,
                                                            replaceSkin: layOnBody, acrossBodies: acrossBodies,
-                                                           clearBody: clear, cutHidden: cut)));
+                                                           clearBody: clear, cutHidden: cut, keepShape: pieces)));
                     Interlocked.Increment(ref planDone);
                 }
                 return new PlanResult(key, results, "");
@@ -1366,6 +1370,35 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 return new PlanResult(key, null, ex.Message);
             }
         });
+    }
+
+    /// <summary>
+    /// The pieces the refit moves whole, from the labels marked "keep shape". An island is one piece; a marked submesh is
+    /// each of its islands separately — a chain is many links, each kept, not one rigid chain — or itself when the reader
+    /// found none.
+    /// </summary>
+    internal static List<IReadOnlyCollection<int>> ShapePieces(ModelParts garment, IReadOnlySet<string> labels)
+    {
+        var pieces = new List<IReadOnlyCollection<int>>();
+        if (labels.Count == 0) return pieces;
+
+        var wholeSubmesh = new HashSet<(int, int)>();
+        foreach (var part in garment.Parts)
+            if (part.Island < 0 && labels.Contains(part.Label))
+                wholeSubmesh.Add((part.Mesh, part.Submesh));
+
+        var covered = new HashSet<(int, int)>();
+        foreach (var part in garment.Parts)
+        {
+            if (part.Island < 0) continue;
+            if (!labels.Contains(part.Label) && !wholeSubmesh.Contains((part.Mesh, part.Submesh))) continue;
+            pieces.Add(part.Triangles.Distinct().ToArray());
+            covered.Add((part.Mesh, part.Submesh));
+        }
+        foreach (var part in garment.Parts)
+            if (part.Island < 0 && labels.Contains(part.Label) && !covered.Contains((part.Mesh, part.Submesh)))
+                pieces.Add(part.Triangles.Distinct().ToArray());
+        return pieces;
     }
 
     /// <summary>
@@ -1537,6 +1570,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         => ctx.ModelRel + "|from:" + (fromBodyDir ?? "") + "|"
          + string.Join("|", Chosen(ctx).Select(s => $"{s}:{from[s].Rel}>{string.Join(",", Targets(s).Select(t => t.Rel))}"))
          + "|held:" + string.Join(",", ctx.Held.OrderBy(h => h, StringComparer.Ordinal))
+         + "|shape:" + string.Join(",", (ctx.KeepShape ?? []).OrderBy(h => h, StringComparer.Ordinal))
          + (replaceSkin ? "|lay" : "")
          + (replaceSkin && !cutHidden ? "|whole" : "")
          + (clearBody ? "|clear" : "");

@@ -557,12 +557,14 @@ internal static partial class BodyRetarget
     /// <param name="cutHidden">With <paramref name="replaceSkin"/>, leave out the new body's skin where the garment's
     /// author deleted theirs, which is usually skin under the cloth that cannot be seen — see <see cref="CutLike"/>.
     /// On by default; off puts the body's skin in whole.</param>
+    /// <param name="keepShape">Pieces moved whole rather than bent to the body — see <see cref="KeepShape"/>. One set
+    /// of vertices per piece; null or empty for none.</param>
     public static Planned Plan(ModelParts garment, byte[] garmentBytes, IReadOnlyList<SlotPair> pairs,
                                string? garmentSlot = null, bool pushOut = true, IReadOnlySet<int>? held = null,
                                bool replaceSkin = false, bool acrossBodies = false, bool clearBody = false,
-                               bool cutHidden = true)
+                               bool cutHidden = true, IReadOnlyList<IReadOnlyCollection<int>>? keepShape = null)
     {
-        var solved = Solve(garment, pairs, garmentSlot, pushOut, held, replaceSkin, clearBody);
+        var solved = Solve(garment, pairs, garmentSlot, pushOut, held, replaceSkin, clearBody, keepShape);
         var written = MeshVolumeService.Inflate(garmentBytes, solved.Edit);
         byte[] model = written.Model;
 
@@ -597,7 +599,7 @@ internal static partial class BodyRetarget
     /// <remarks>The geometry, without touching the file. See <see cref="Solved"/>.</remarks>
     internal static Solved Solve(ModelParts garment, IReadOnlyList<SlotPair> pairs, string? garmentSlot = null,
                                  bool pushOut = true, IReadOnlySet<int>? held = null, bool replaceSkin = false,
-                                 bool clearBody = false)
+                                 bool clearBody = false, IReadOnlyList<IReadOnlyCollection<int>>? keepShape = null)
     {
         var sets = Sets.From(garment, held);
         var source = SourceBody.Build(pairs);
@@ -608,8 +610,23 @@ internal static partial class BodyRetarget
         Transfer(sets, sets.AllNodes, source, nodeDelta, snapped, out int transferred, out int missed);
         Knit(sets, nodeDelta, snapped);
 
+        // With the skin replaced, the garment's OWN slot body is drawn after all — Rebuild embeds that very mesh in the
+        // garment, so it is what the cloth ends up lying against. Asking for the swap is not enough: Rebuild only swaps
+        // a slot that carries its target body's FILE, so a pair built without one keeps the author's skin, and
+        // everything that depends on the swap must agree with it.
+        bool ownSlotSwapped = replaceSkin && garmentSlot != null
+                           && pairs.Any(p => string.Equals(p.Slot, garmentSlot, StringComparison.Ordinal)
+                                          && p.TargetModel != null);
+
         // Before the push-out, so the push-out measures cloth against the skin as it will actually be drawn.
+        var carried = (Vec3[])nodeDelta.Clone();
         int laid = replaceSkin ? LaySkin(sets, source, pairs, nodeDelta) : 0;
+        if (ownSlotSwapped && laid > 0) FollowLaidSkin(garment, sets, carried, nodeDelta, snapped);
+
+        // Hard pieces whole, before the push-out measures them against the skin.
+        var scales = new float[keepShape?.Count ?? 0];
+        Array.Fill(scales, float.NaN);
+        if (keepShape is { Count: > 0 }) KeepShape(sets, keepShape, nodeDelta, scales);
 
         int pushed = 0;
         float worstPush = 0f;
@@ -620,24 +637,16 @@ internal static partial class BodyRetarget
             bool hasSkin = sets.ClothNodes.Length < sets.NodeCount;
             var before = TargetBody.Build(pairs, garmentSlot, hasSkin ? garment : null, before: true);
 
-            // With the skin replaced, the garment's OWN slot body is drawn after all — Rebuild embeds that very mesh
-            // in the garment, so it is what the cloth ends up lying against. Measured on a sheer corset refitted
-            // Bibo+ to Neolithe: pushed against the garment's transferred skin, 326 cup vertices came out buried up
-            // to 3.4 mm inside the breast the file actually carries, against 2 in the author's own; the two surfaces
-            // are not the same, and the one the solve could see is thrown away before the file is written.
+            // The swapped-in body is what the cloth is pushed against. Measured on a sheer corset refitted Bibo+ to
+            // Neolithe: pushed against the garment's transferred skin, 326 cup vertices came out buried up to 3.4 mm
+            // inside the breast the file actually carries, against 2 in the author's own; the two surfaces are not
+            // the same, and the one the solve could see is thrown away before the file is written.
             //
             // Only where the swap will really happen. TargetBody's remarks record the opposite measurement for a
             // garment that KEEPS its own skin: "This Old Thing" compresses the chest under its top, its cloth
             // legitimately sits inside the body, and pushing it out made that refit 50% worse. The swap is what
             // separates the two cases — it discards the author's compressed skin and puts the body's own full-size
             // mesh in its place, so there is no longer any compression for the cloth to be legitimately inside of.
-            //
-            // Asking for the swap is not enough: Rebuild only swaps a slot that carries its target body's FILE, so a
-            // pair built without one keeps the author's skin and must keep the old exclusion with it. The two must
-            // agree, or the cloth is pushed out of a body nobody draws.
-            bool ownSlotSwapped = replaceSkin && garmentSlot != null
-                               && pairs.Any(p => string.Equals(p.Slot, garmentSlot, StringComparison.Ordinal)
-                                              && p.TargetModel != null);
             var after = TargetBody.Build(pairs, ownSlotSwapped ? null : garmentSlot,
                                          hasSkin ? Moved(garment, sets, nodeDelta) : null, before: false);
 
@@ -646,6 +655,9 @@ internal static partial class BodyRetarget
                 if (!snapped[n]) pushable.Add(n);
 
             pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush);
+
+            // The push moves points one by one, and bent the pieces straight back: whole again, around where it put them.
+            if (keepShape is { Count: > 0 }) KeepShape(sets, keepShape, nodeDelta, scales);
         }
 
         // Last, once nothing else will move: the answer is only worth having if the mesh still reads front-side out.
