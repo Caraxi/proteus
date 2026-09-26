@@ -661,9 +661,9 @@ public class BodyRetargetTests
 
     /// <summary>
     /// A fold the give-up cannot reach — its corner is the skin's, which may not be pulled back off the body — must
-    /// not cost the cloth around it its movement. Halving without a floor takes those corners to nothing: they land
-    /// where the author put them on the OLD body while the points they are welded to keep the full displacement,
-    /// which is the tear the pass exists to close, now in a place nothing was wrong.
+    /// not cost the cloth around it its movement: given up toward nothing, those corners land where the author put
+    /// them on the OLD body while the points they are welded to keep the full displacement, which is the tear the pass
+    /// exists to close, now in a place nothing was wrong.
     /// </summary>
     [Fact]
     public void A_fold_held_by_the_skin_does_not_cost_the_cloth_its_movement()
@@ -689,10 +689,85 @@ public class BodyRetargetTests
         // It cannot be cleared — and it must not be made worse trying.
         Assert.True(left <= before, $"the give-up left {left} folds where the relax had {before}");
 
-        // Every cloth corner keeps a floor of what it was given. Unbounded halving leaves 0.5^64 of it.
+        // Every cloth corner keeps most of the movement it shares with the others. Toward nothing it keeps 0.5^64.
         foreach (int v in new[] { 0, 2, 3 })
-            Assert.True(delta[sets.NodeOf[v]].Z >= 0.004f * BodyRetarget.UnfoldGiveUpFloor - 1e-9f,
+            Assert.True(delta[sets.NodeOf[v]].Z >= 0.002f,
                 $"cloth corner {v} kept {delta[sets.NodeOf[v]].Z:0.#######} of 0.004");
+    }
+
+    /// <summary>
+    /// A fold on cloth that moved a long way with the body gives up the corners' DISAGREEMENT, not the move they share.
+    /// Reported on "Picklish" refitted Neolithe L to YAB L: the whole band under the bust was scaled back toward where
+    /// the author put it on the old body, and came out up to 26 mm inside the new, lower breasts.
+    /// </summary>
+    [Fact]
+    public void Giving_up_a_fold_keeps_the_body_size_move()
+    {
+        var quad = Quad(0.01f);
+        var sets = BodyRetarget.Sets.From(quad);
+
+        // Every corner carried 30 mm out with the body; corner 1 also dragged across the diagonal, which folds.
+        var delta = new SecondSkinWriter.Vec3[sets.NodeCount];
+        for (int v = 0; v < 4; v++) delta[sets.NodeOf[v]] = new SecondSkinWriter.Vec3(0f, 0f, 0.03f);
+        delta[sets.NodeOf[1]] = new SecondSkinWriter.Vec3(-0.02f, 0.02f, 0.03f);
+
+        var flagged = new bool[sets.NodeCount];
+        int before = FoldedVia(quad, delta, sets, flagged);
+        Assert.True(before > 0, "the hand-made delta should have turned a triangle over");
+
+        Assert.Equal(0, BodyRetarget.GiveUpFolds(sets, delta, new bool[sets.NodeCount], flagged, before));
+        for (int v = 0; v < 4; v++)
+            Assert.True(delta[sets.NodeOf[v]].Z > 0.029f, $"corner {v} kept {delta[sets.NodeOf[v]].Z * 1000:F1} mm of 30");
+    }
+
+    /// <summary>
+    /// A held corner of a fold stays where the user left it. The give-up takes a corner toward the movement around it,
+    /// and a held point's own movement is none, so without the hold it is dragged after its moving neighbours.
+    /// </summary>
+    [Fact]
+    public void Giving_up_a_fold_never_moves_a_held_point()
+    {
+        var quad = Quad(0.01f);
+        var sets = BodyRetarget.Sets.From(quad, new HashSet<int> { 0 });
+        Assert.Equal(1, sets.HeldCount);
+
+        // Corner 1 across the diagonal folds triangle 0-1-2, whose corner 0 is held.
+        var delta = new SecondSkinWriter.Vec3[sets.NodeCount];
+        delta[sets.NodeOf[1]] = new SecondSkinWriter.Vec3(-0.02f, 0.02f, 0.01f);
+        delta[sets.NodeOf[2]] = new SecondSkinWriter.Vec3(0f, 0f, 0.01f);
+        delta[sets.NodeOf[3]] = new SecondSkinWriter.Vec3(0f, 0f, 0.01f);
+        var flagged = new bool[sets.NodeCount];
+        int before = FoldedVia(quad, delta, sets, flagged);
+        Assert.True(flagged[sets.NodeOf[0]], "the held corner should be a corner of the fold");
+
+        var fixedNode = BodyRetarget.GiveUpFixed(sets, new bool[sets.NodeCount]);
+        Assert.True(fixedNode[sets.NodeOf[0]], "a held node is not the give-up's to move");
+        BodyRetarget.GiveUpFolds(sets, delta, fixedNode, flagged, before);
+
+        Assert.Equal(default, delta[sets.NodeOf[0]]);
+    }
+
+    /// <summary>
+    /// A corner the next step would bury in the skin keeps the step it has, and its fold stays: a black speck is a
+    /// smaller fault than cloth the skin comes through, and nothing after this pass would push it back out.
+    /// </summary>
+    [Fact]
+    public void A_fold_is_not_given_up_into_the_skin()
+    {
+        var quad = Quad(0.01f);
+        var sets = BodyRetarget.Sets.From(quad);
+        var delta = new SecondSkinWriter.Vec3[sets.NodeCount];
+        delta[sets.NodeOf[1]] = new SecondSkinWriter.Vec3(-0.02f, 0.02f, 0f);
+        var was = (SecondSkinWriter.Vec3[])delta.Clone();
+
+        var flagged = new bool[sets.NodeCount];
+        int before = FoldedVia(quad, delta, sets, flagged);
+
+        // Every step the give-up could take would bury its corner.
+        int left = BodyRetarget.GiveUpFolds(sets, delta, new bool[sets.NodeCount], flagged, before, (_, _) => false);
+
+        Assert.Equal(before, left);
+        Assert.Equal(was, delta);
     }
 
     /// <summary>

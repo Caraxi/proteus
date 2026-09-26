@@ -13,9 +13,10 @@ internal static partial class BodyRetarget
     /// <param name="NoFollow">Switch <see cref="FollowLaidSkin"/> off.</param>
     /// <param name="NoOwnSkinWeights">Take the weight change against the old body mod everywhere, never the
     /// garment's own skin.</param>
+    /// <param name="NoGiveUp">Leave folds the relax could not clear, rather than giving up their corners' movement.</param>
     internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
                                   float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
-                                  float CopyTolerance = CopyToleranceDefault);
+                                  float CopyTolerance = CopyToleranceDefault, bool NoGiveUp = false);
 
     private static readonly Tuning DefaultTuning = new();
 

@@ -129,12 +129,26 @@ internal static partial class BodyRetarget
     private const float UnfoldGiveUpRate = 0.5f;
 
     /// <summary>
-    /// The least of its movement a point may be left with. Halving without one takes a point the passes can never
-    /// help — its fold is held by the skin corner, which this may not move — down to nothing: it lands where the
-    /// author put it on the OLD body while the neighbours it is welded to keep the whole body-size displacement,
-    /// which is the very tear the pass exists to close. Four halvings is past where a fold this can clear clears.
+    /// Rounds of neighbour-averaging for what the give-up takes a folded corner's movement TOWARD (128): the movement
+    /// around it, smoothed until neighbouring corners no longer disagree enough to turn a triangle over.
+    /// <para/>
+    /// Not toward nothing, as it once was. A fold is corners disagreeing, not too much movement, and the part of their
+    /// movement they share is the body-size change itself. Measured on "Picklish" (a strapless band, Neolithe Almond L
+    /// to YAB Large, whose bust sits 38 mm lower): scaled toward nothing, the band under the bust was left at a
+    /// sixteenth of its movement, on the old body, and 1,916 of its points came out up to 26 mm inside the new breasts
+    /// to save about a hundred folded triangles. Toward this: 114, and against the authors' own sizes every refit
+    /// measured came out as close or closer (Seaside L to XS cloth 1.95 -> 1.62 mm mean). Fewer rounds leave more
+    /// folds (32: twelve on "Sheer Elegance", 128: two).
+    /// <para/>
+    /// Nor with a floor on how much of it a point keeps: the floor was there because going all the way back to
+    /// nothing tore a point off the neighbours that kept the body-size move, and going all the way to what the
+    /// neighbours are doing is no tear.
     /// </summary>
-    internal const float UnfoldGiveUpFloor = 0.0625f;
+    internal const int UnfoldAnchorRounds = 128;
+
+    /// <summary>How much deeper into the drawn skin unfolding may take a cloth point than the push-out left it (0.1 mm):
+    /// enough for rounding, and no more.</summary>
+    internal const float UnfoldBuryTolerance = 1e-4f;
 
     /// <summary>
     /// How far the push-out looks for the skin when deciding whether cloth was authored INSIDE it (15 cm). Cloth tucked
@@ -630,6 +644,7 @@ internal static partial class BodyRetarget
 
         int pushed = 0;
         float worstPush = 0f;
+        TargetBody? drawn = null;
         if (pushOut)
         {
             // The skin drawn under the cloth once it is worn, as authored and after the refit: the garment's own body
@@ -655,13 +670,15 @@ internal static partial class BodyRetarget
                 if (!snapped[n]) pushable.Add(n);
 
             pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush);
+            drawn = after;
 
             // The push moves points one by one, and bent the pieces straight back: whole again, around where it put them.
             if (keepShape is { Count: > 0 }) KeepShape(sets, keepShape, nodeDelta, scales);
         }
 
         // Last, once nothing else will move: the answer is only worth having if the mesh still reads front-side out.
-        int folded = Unfold(sets, nodeDelta, snapped);
+        // Past the push-out, so whatever unfolding gives up is judged against the skin it would be given up into.
+        int folded = Unfold(sets, nodeDelta, snapped, drawn == null ? null : SignedOff(drawn));
 
         int vc = garment.Positions.Length / 3;
         var vertDelta = new Vec3[vc];
@@ -702,14 +719,35 @@ internal static partial class BodyRetarget
     /// folded triangle of skin is a black speck like any other. Held nodes are not in <see cref="Sets.AllNodes"/> and
     /// never move.
     /// </summary>
+    /// <param name="signedOff">How far a point is outside the skin drawn under the garment (negative inside). Nothing
+    /// here may take a cloth point into that skin, or deeper than it was: unfolding runs after the push-out, and nothing
+    /// pushes it back out. Measured on "Seaside" (Rue Medium to Yiggle Small): unjudged, the relax drew the underbust
+    /// into the smaller breast, 5 mm deep. Null when there is no drawn skin to keep clear of.</param>
     /// <returns>Triangles still folded when the rounds ran out — zero when the pass cleared them all.</returns>
-    internal static int Unfold(Sets sets, Vec3[] nodeDelta, bool[] snapped)
+    internal static int Unfold(Sets sets, Vec3[] nodeDelta, bool[] snapped, Func<Vector3, float>? signedOff = null)
     {
         var isSkin = new bool[sets.NodeCount];
         foreach (int n in sets.SkinNodes) isSkin[n] = true;
 
         var mayMove = new bool[sets.NodeCount];
         foreach (int n in sets.AllNodes) mayMove[n] = !snapped[n] && !isSkin[n];
+
+        // Unfolding moves cloth after the push-out has put it clear of the skin, and nothing pushes it out again: so no
+        // step of it may take a cloth point into the skin, or deeper than the push-out left it. The skin's own points
+        // lie ON the skin and are not judged.
+        Func<int, Vec3, bool>? mayGo = null;
+        if (signedOff != null)
+        {
+            var entry = (Vec3[])nodeDelta.Clone();
+            var entryOff = new float[sets.NodeCount];
+            Array.Fill(entryOff, float.NaN);
+            mayGo = (n, d) =>
+            {
+                if (isSkin[n]) return true;
+                if (float.IsNaN(entryOff[n])) entryOff[n] = signedOff(Placed(sets, entry, n));
+                return signedOff(ToVector(sets.NodeAt[n]) + ToVector(d)) >= MathF.Min(entryOff[n], 0f) - UnfoldBuryTolerance;
+            };
+        }
 
         var flagged = new bool[sets.NodeCount];
         int folded = 0;
@@ -729,10 +767,12 @@ internal static partial class BodyRetarget
                 foreach (int m in sets.Adj[n]) sum = new Vec3(sum.X + nodeDelta[m].X, sum.Y + nodeDelta[m].Y,
                                                               sum.Z + nodeDelta[m].Z);
                 float inv = 1f / sets.Adj[n].Count;
-                nodeDelta[n] = new Vec3(
+                var relaxed = new Vec3(
                     nodeDelta[n].X + (sum.X * inv - nodeDelta[n].X) * UnfoldRate,
                     nodeDelta[n].Y + (sum.Y * inv - nodeDelta[n].Y) * UnfoldRate,
                     nodeDelta[n].Z + (sum.Z * inv - nodeDelta[n].Z) * UnfoldRate);
+                if (mayGo != null && !mayGo(n, relaxed)) continue;
+                nodeDelta[n] = relaxed;
             }
         }
 
@@ -742,33 +782,61 @@ internal static partial class BodyRetarget
         // a number too high to beat. Breaking out is the other case, and there the reading is current and free.
         if (round == UnfoldRounds) folded = Folded(sets, nodeDelta, flagged);
 
-        return folded == 0 ? 0 : GiveUpFolds(sets, nodeDelta, isSkin, flagged, folded);
+        return folded == 0 || Tuned.NoGiveUp
+            ? folded
+            : GiveUpFolds(sets, nodeDelta, GiveUpFixed(sets, isSkin), flagged, folded, mayGo);
     }
 
     /// <summary>
-    /// Whatever the relax could not turn back, give up its movement for: a folded triangle's corners are scaled back
-    /// toward where the author had them, and the test runs again.
+    /// The nodes the give-up may not move: the skin, and every node the user holds. The give-up takes a corner toward
+    /// the movement around it, so a held node — no movement of its own — would be dragged after its neighbours.
+    /// </summary>
+    internal static bool[] GiveUpFixed(Sets sets, bool[] isSkin)
+    {
+        var fixedNode = new bool[sets.NodeCount];
+        Array.Fill(fixedNode, true);
+        foreach (int n in sets.AllNodes) fixedNode[n] = isSkin[n];
+        return fixedNode;
+    }
+
+    /// <summary>How far outside <paramref name="drawn"/> a point is, along the normal of the skin it is deepest in;
+    /// past <see cref="PushProbeRange"/> it counts as clear.</summary>
+    private static Func<Vector3, float> SignedOff(TargetBody drawn)
+        => p => drawn.Deepest(p, PushProbeRange, out var hit) ? Vector3.Dot(p - hit.Point, hit.Normal) : float.PositiveInfinity;
+
+    /// <summary>
+    /// Whatever the relax could not turn back, give up its disagreement for: a folded triangle's corners are taken,
+    /// half the way at a time, from their own movement toward the movement around them smoothed (see
+    /// <see cref="UnfoldAnchorRounds"/>), and the test runs again.
     /// <para/>
     /// Averaging a folded node against its neighbours only works when the neighbours are right; where a whole
     /// patch is folded together they are all wrong the same way, and it converges to nothing. Measured on "Rana"
     /// refitted Bibo+ to Neolithe, a loose off-shoulder jacket whose own body mesh the author sculpted rather than
     /// copied (11% of its points snap): 424 triangles turned over, and 200 rounds of relaxing took that to 396.
     /// <para/>
-    /// Scaling clears a fold whose corners are ALL ours, because at zero the triangle IS the authored one and
-    /// <see cref="Folded"/> judges against exactly that. Where the corner holding it is the skin's, no amount of
-    /// scaling reaches it — hence <see cref="UnfoldGiveUpFloor"/>, and hence keeping the BEST reading rather than
-    /// the last: this may not hand back a mesh worse than the one the relax gave it.
+    /// A smooth movement turns no triangle over, so this clears a fold whose corners are all ours while keeping the
+    /// body-size change they share. Where the corner holding it is the skin's, nothing here reaches it — hence keeping
+    /// the BEST reading rather than the last: this may not hand back a mesh worse than the one the relax gave it.
     /// </summary>
-    /// <param name="isSkin">Nodes on the new body, which this may not pull back off it.</param>
+    /// <param name="isSkin">Nodes this may not move: the skin, which has to stay on the new body, and whatever the
+    /// caller holds.</param>
     /// <param name="flagged">The corners of <paramref name="folded"/>, as <see cref="Folded"/> left them; written
     /// through.</param>
     /// <param name="folded">The relax's own last reading, so a garment it cleared is never re-counted.</param>
+    /// <param name="mayGo">Whether a node may take a delta — see <see cref="Unfold"/>: a corner is never given up into
+    /// the skin. Where the next step would bury it, it keeps the step it has and its fold stays. Null gives up without
+    /// looking.</param>
     /// <returns>Triangles still folded — never more than <paramref name="folded"/>.</returns>
-    internal static int GiveUpFolds(Sets sets, Vec3[] nodeDelta, bool[] isSkin, bool[] flagged, int folded)
+    internal static int GiveUpFolds(Sets sets, Vec3[] nodeDelta, bool[] isSkin, bool[] flagged, int folded,
+                                    Func<int, Vec3, bool>? mayGo = null)
     {
         var full = (Vec3[])nodeDelta.Clone();
+        var anchor = Smoothed(sets, full, UnfoldAnchorRounds);
         var give = new float[sets.NodeCount];
         Array.Fill(give, 1f);
+
+        // Nodes stopped from going any further because the next step would bury them.
+        var stuck = new bool[sets.NodeCount];
 
         int best = folded;
         float[]? bestGive = null;
@@ -778,13 +846,20 @@ internal static partial class BodyRetarget
             bool moved = false;
             for (int n = 0; n < sets.NodeCount; n++)
             {
-                // The skin has to stay ON the body; it is not ours to undo. Nor is a point already at the floor.
-                if (!flagged[n] || isSkin[n] || give[n] <= UnfoldGiveUpFloor) continue;
-                give[n] = MathF.Max(UnfoldGiveUpFloor, give[n] * UnfoldGiveUpRate);
-                nodeDelta[n] = new Vec3(full[n].X * give[n], full[n].Y * give[n], full[n].Z * give[n]);
+                // The skin has to stay ON the body, and a held point where the user left it; neither is ours to undo.
+                if (!flagged[n] || isSkin[n] || stuck[n]) continue;
+                float g = give[n] * UnfoldGiveUpRate;
+                var step = Toward(anchor[n], full[n], g);
+                if (mayGo != null && !mayGo(n, step))
+                {
+                    stuck[n] = true;
+                    continue;
+                }
+                give[n] = g;
+                nodeDelta[n] = step;
                 moved = true;
             }
-            if (!moved) break;   // every folded point this may move is at the floor
+            if (!moved) break;   // every folded point this may move would be buried by the next step
 
             folded = Folded(sets, nodeDelta, flagged);
             if (folded == 0) return 0;
@@ -798,11 +873,39 @@ internal static partial class BodyRetarget
             for (int n = 0; n < sets.NodeCount; n++)
             {
                 float g = bestGive?[n] ?? 1f;
-                nodeDelta[n] = g >= 1f ? full[n] : new Vec3(full[n].X * g, full[n].Y * g, full[n].Z * g);
+                nodeDelta[n] = g >= 1f ? full[n] : Toward(anchor[n], full[n], g);
             }
             folded = Folded(sets, nodeDelta, flagged);
         }
         return folded;
+
+        static Vec3 Toward(Vec3 anchor, Vec3 full, float give)
+            => new(anchor.X + (full.X - anchor.X) * give, anchor.Y + (full.Y - anchor.Y) * give,
+                   anchor.Z + (full.Z - anchor.Z) * give);
+    }
+
+    /// <summary>
+    /// The displacement averaged over the garment's own surface, <paramref name="rounds"/> times: each node takes its
+    /// neighbours' mean. What <see cref="GiveUpFolds"/> takes a folded corner's movement toward.
+    /// </summary>
+    private static Vec3[] Smoothed(Sets sets, Vec3[] delta, int rounds)
+    {
+        var cur = (Vec3[])delta.Clone();
+        var next = new Vec3[cur.Length];
+        for (int round = 0; round < rounds; round++)
+        {
+            for (int n = 0; n < cur.Length; n++)
+            {
+                var adj = sets.Adj[n];
+                if (adj.Count == 0) { next[n] = cur[n]; continue; }
+                float x = cur[n].X, y = cur[n].Y, z = cur[n].Z;
+                foreach (int m in adj) { x += cur[m].X; y += cur[m].Y; z += cur[m].Z; }
+                float inv = 1f / (adj.Count + 1);
+                next[n] = new Vec3(x * inv, y * inv, z * inv);
+            }
+            (cur, next) = (next, cur);
+        }
+        return cur;
     }
 
     /// <summary>
