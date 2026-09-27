@@ -25,6 +25,12 @@ internal sealed class HatCompatRecord
     /// since a hair pack's hairstyles are patched as they are worn, possibly months apart.
     /// </summary>
     [JsonPropertyName("Versions")] public Dictionary<string, int> Versions { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Files whose AUTHOR'S hat support Proteus discarded for its own fit (<c>ReplaceAuthoredHatCompat</c>). Named so
+    /// switching that setting off can put the author's version back.
+    /// </summary>
+    [JsonPropertyName("Replaced")] public List<string> Replaced { get; set; } = [];
 }
 
 /// <summary>
@@ -63,13 +69,17 @@ public static class HatCompatService
     /// <param name="TookOver">The hairstyle's own hat support measured as hiding hair no hat covers, so
     /// Proteus replaces its <c>atr_kam</c> mask and LEAVES its shape alone (see
     /// <see cref="HatCompatSolve.MeasureScalpTagging"/>).</param>
+    /// <param name="Replaced">The hairstyle has hat support of its own and the user asked for Proteus's fit instead
+    /// (<c>ReplaceAuthoredHatCompat</c>): its <c>shp_hib</c> and <c>atr_kam</c> are discarded and it is fitted as if
+    /// it had none.</param>
     public sealed record Proposal(
         string Rel,
         ModelParts Parts,
         HatCompatSolve.Result Solve,
         bool AlreadyCompatible,
         bool Unmeasurable = false,
-        bool TookOver = false);
+        bool TookOver = false,
+        bool Replaced = false);
 
     /// <summary>The hair Proteus would patch, and the head it would press it against.</summary>
     /// <param name="ModRoot">The mod folder that supplies the hair (directly under Penumbra's mods root), the
@@ -206,12 +216,19 @@ public static class HatCompatService
     /// <summary>Whether Proteus has already fitted this exact file, and if so whether that patch is current.</summary>
     /// <param name="stale">The patch was written by an older <see cref="HatCompatSolve.Version"/>.</param>
     public static bool IsPatched(string modRoot, string rel, out bool stale)
+        => IsPatched(modRoot, rel, out stale, out _);
+
+    /// <inheritdoc cref="IsPatched(string, string, out bool)"/>
+    /// <param name="replaced">The patch discarded the author's own hat support (see <see cref="Proposal.Replaced"/>).</param>
+    public static bool IsPatched(string modRoot, string rel, out bool stale, out bool replaced)
     {
         stale = false;
+        replaced = false;
         rel = Rel(rel);
         var record = ReadRecord(modRoot);
         if (record?.Files.Contains(rel, StringComparer.OrdinalIgnoreCase) != true) return false;
         stale = (record.Versions.TryGetValue(rel, out var v) ? v : 0) < HatCompatSolve.Version;
+        replaced = record.Replaced.Contains(rel, StringComparer.OrdinalIgnoreCase);
         return true;
     }
 
@@ -220,7 +237,10 @@ public static class HatCompatService
     /// <see cref="Proposal.Unmeasurable"/> and nothing is fitted.</param>
     /// <param name="raceCode">The wearer's model code ("0801"), which picks the baked hat profile (see
     /// <see cref="HatProfile"/>).</param>
-    public static Proposal? Inspect(byte[] mdl, string rel, byte[]? head, string? raceCode = null)
+    /// <param name="replaceAuthored">Fit a hairstyle that has hat support of its own too, discarding the author's
+    /// (<see cref="Proposal.Replaced"/>). Off, such a hairstyle is left alone unless its mask is harmful.</param>
+    public static Proposal? Inspect(byte[] mdl, string rel, byte[]? head, string? raceCode = null,
+                                    bool replaceAuthored = false)
     {
         // Canonicalised here so everything downstream of a proposal (record, Revert) uses one spelling.
         rel = Rel(rel);
@@ -228,6 +248,16 @@ public static class HatCompatService
         if (parts == null) return null;
         if (IsHatCompatible(mdl))
         {
+            if (replaceAuthored)
+            {
+                // Asked for: fit it as if it had none. The solve measures the hair's own geometry, which the
+                // author's shape does not move, and skips the spare vertices it left, which no triangle draws.
+                if (head == null)
+                    return new Proposal(rel, parts, HatCompatSolve.Result.None, false, Unmeasurable: true);
+                return new Proposal(rel, parts, HatCompatSolve.Solve(mdl, parts, head, raceCode: raceCode), false,
+                                    Replaced: true);
+            }
+
             // Hat support of its own, but possibly a mask inherited from vanilla hair: measure what it costs.
             // Without a head it cannot be judged, and stands.
             var tagging = head != null ? HatCompatSolve.MeasureScalpTagging(mdl, head, raceCode) : null;
@@ -274,11 +304,17 @@ public static class HatCompatService
         try
         {
             patched = mdl;
+
+            // Clear whatever atr_kam the author had (usually inherited from vanilla hair) before the cut replaces it —
+            // but only when something does replace it, or on a replacement, where the author's hat support goes whole
+            // (shape and mask) so both halves of the fit are Proteus's. A replacement only gets here with a fit of its
+            // own (the check above): discarding the author's for nothing would leave the hair clipping.
+            if (proposal.Replaced) patched = ModelAttributeWriter.RemoveShape(patched, HatShape);
+            if (proposal.Replaced || tag.Count > 0)
+                patched = ModelAttributeWriter.ClearAttribute(patched, ScalpAttribute);
+
             if (tag.Count > 0)
             {
-                // Clear whatever atr_kam the author had (usually inherited from vanilla hair) and replace it with
-                // the cut. Only inside this branch, since clearing is defensible only when something replaces it.
-                patched = ModelAttributeWriter.ClearAttribute(patched, ScalpAttribute);
 
                 // Split the cut triangles out of their submeshes FIRST, since an attribute tags a whole submesh.
                 // A split moves no vertex or index, so the press's mesh-relative numbers stay valid.
@@ -318,6 +354,8 @@ public static class HatCompatService
                 record.Files.Add(proposal.Rel);
             record.Hidden[proposal.Rel] = tag.Select(p => $"{p.Mesh}.{p.Submesh}").ToList();
             record.Versions[proposal.Rel] = HatCompatSolve.Version;
+            record.Replaced.RemoveAll(f => f.Equals(proposal.Rel, StringComparison.OrdinalIgnoreCase));
+            if (proposal.Replaced) record.Replaced.Add(proposal.Rel);
             WriteRecord(modRoot, record);
         }
         catch (Exception ex)
@@ -368,6 +406,7 @@ public static class HatCompatService
                 record.Files.RemoveAll(f => f.Equals(rel, StringComparison.OrdinalIgnoreCase));
                 record.Hidden.Remove(rel);
                 record.Versions.Remove(rel);
+                record.Replaced.RemoveAll(f => f.Equals(rel, StringComparison.OrdinalIgnoreCase));
             }
             catch { skipped.Add(rel); }
         }
@@ -391,6 +430,40 @@ public static class HatCompatService
         return new Outcome(true, "", restoredFrom.Count);
     }
 
+    /// <summary>
+    /// Put the author's own hat support back on every hairstyle Proteus replaced it on, in every mod under
+    /// <paramref name="modsRoot"/>, from each mod's record. For switching <c>ReplaceAuthoredHatCompat</c> off: the
+    /// replaced hairstyles are rarely the one being worn, and nothing else would ever look at them.
+    /// </summary>
+    /// <returns>How many files came back, the mod folders they are in, and a line per file that did not.</returns>
+    public static (int Restored, List<string> Mods, List<string> Failed) RestoreReplaced(string modsRoot)
+    {
+        int restored = 0;
+        var mods = new List<string>();
+        var failed = new List<string>();
+
+        IEnumerable<string> dirs;
+        try { dirs = Directory.EnumerateDirectories(modsRoot).ToList(); }
+        catch (IOException) { return (0, mods, failed); }
+        catch (UnauthorizedAccessException) { return (0, mods, failed); }
+
+        foreach (var modRoot in dirs)
+        {
+            if (!File.Exists(Path.Combine(modRoot, SidecarDiscoveryService.SidecarSubdir, RecordFile))) continue;
+            if (ReadRecord(modRoot)?.Replaced is not { Count: > 0 } replaced) continue;
+
+            bool any = false;
+            foreach (var rel in replaced)
+            {
+                var outcome = Revert(modRoot, rel);
+                if (outcome.Ok) { restored += outcome.FilesPatched; any = true; }
+                else failed.Add($"{Path.GetFileName(modRoot)}/{rel}: {outcome.Message}");
+            }
+            if (any) mods.Add(modRoot);
+        }
+        return (restored, mods, failed);
+    }
+
     // ── the record ──────────────────────────────────────────────────────────
 
     /// <summary>
@@ -408,6 +481,7 @@ public static class HatCompatService
 
             // Distinct AFTER canonicalising, so two spellings of one file collapse to one entry.
             record.Files = record.Files.Select(Rel).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            record.Replaced = (record.Replaced ?? []).Select(Rel).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
 
             var hidden = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase);
             foreach (var (k, v) in record.Hidden) hidden[Rel(k)] = v;

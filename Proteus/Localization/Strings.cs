@@ -143,6 +143,19 @@ public sealed class HatCompatStrings
         "off and travels with the mod if you export it. Originals are kept and the\n" +
         "change can be undone here.");
 
+    public readonly string ReplaceAuthored = Loc.Localize(
+        "HatCompat.ReplaceAuthored.Label", "Replace hat support a hairstyle came with") + "###hatCompatReplaceAuthored";
+
+    public readonly string ReplaceAuthoredTip = Loc.Localize("HatCompat.ReplaceAuthored.Tip",
+        "Some hairstyles come with hat support their author made by hand. With this off,\n" +
+        "Proteus leaves those alone. With it on, Proteus discards the author's version and\n" +
+        "fits the hairstyle itself, the same as one that came with none.\n\n" +
+        "Off by default: an author's hand-made fit is usually the better one. The author's\n" +
+        "version is kept, and is put back when you turn this off again.");
+
+    public readonly string Replacing = Loc.Localize("HatCompat.Replacing",
+        "This hairstyle came with hat support of its own. As set above, Proteus will replace it with its own fit.");
+
     public readonly string HidePonytails = Loc.Localize(
         "HatCompat.HidePonytails.Label", "Hide ponytails") + "###hatCompatHideTails";
 

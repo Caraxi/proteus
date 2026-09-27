@@ -25,11 +25,12 @@ public class HatCompatServiceTests
     /// <summary>A throwaway mod folder publishing one hair model.</summary>
     private sealed class Mod : IDisposable
     {
-        public string Root { get; } = Path.Combine(
-            Path.GetTempPath(), "proteus_hat_" + Path.GetRandomFileName());
+        public string Root { get; }
 
-        public Mod(byte[] model)
+        /// <param name="parent">A mods root to put it in; the system temp folder when null.</param>
+        public Mod(byte[] model, string? parent = null)
         {
+            Root = Path.Combine(parent ?? Path.GetTempPath(), "proteus_hat_" + Path.GetRandomFileName());
             Directory.CreateDirectory(Root);
             File.WriteAllText(Path.Combine(Root, "meta.json"),
                 "{\"FileVersion\":4,\"Name\":\"Bob\",\"Groups\":[],\"DefaultData\":{\"Files\":{"
@@ -506,6 +507,126 @@ public class HatCompatServiceTests
         Assert.Equal(2, undo.FilesPatched);
         Assert.Equal(original, mod.Model());
         Assert.Equal(original, File.ReadAllBytes(otherFile));
+        Assert.False(File.Exists(mod.Record));
+    }
+
+    // ── replacing an author's hat support ───────────────────────────────────
+
+    /// <summary>Hair with its author's own hat support: a shp_hib pressing mesh 0, atr_kam on mesh 1.</summary>
+    private static byte[] AuthoredHair()
+    {
+        var mdl = ModelAttributeWriter.AddShape(Hair(), HatCompatService.HatShape,
+            new Dictionary<int, IReadOnlyDictionary<int, Vector3>>
+            {
+                [0] = new Dictionary<int, Vector3> { [2] = new(9f, 9f, 9f) },
+            });
+        var parts = ModelPartReader.Read(mdl)!;
+        var (split, targets) = ModelAttributeWriter.IsolateParts(mdl, [PartOf(parts, 1)]);
+        return ModelAttributeWriter.AddAttribute(split, HatCompatService.ScalpAttribute, targets);
+    }
+
+    [Fact]
+    public void AuthoredHatSupportIsLeftAloneUnlessReplacingIsAsked()
+    {
+        var mdl = AuthoredHair();
+        Assert.True(HatCompatService.Inspect(mdl, ModelRel, head: Hair())!.AlreadyCompatible);
+
+        var replacing = HatCompatService.Inspect(mdl, ModelRel, head: Hair(), replaceAuthored: true)!;
+        Assert.True(replacing.Replaced);
+        Assert.False(replacing.AlreadyCompatible);
+
+        // Replacing still needs a head to fit against; without one nothing is proposed.
+        Assert.True(HatCompatService.Inspect(mdl, ModelRel, head: null, replaceAuthored: true)!.Unmeasurable);
+    }
+
+    /// <summary>
+    /// Replacing discards the author's shape AND mask, so what is left is entirely Proteus's fit: one shp_hib (ours,
+    /// on mesh 0 vertex 1, not the author's on vertex 2), and atr_kam only where Proteus cut. Undo gives back the
+    /// author's file byte for byte.
+    /// </summary>
+    [Fact]
+    public void ReplacingSwapsTheAuthorsShapeAndMaskForProteussAndUndoRestoresTheirs()
+    {
+        var authored = AuthoredHair();
+        using var mod = new Mod(authored);
+        var parts = ModelPartReader.Read(authored)!;
+        var proposal = Proposal(authored, parts) with { Replaced = true };
+
+        // Proteus tags nothing here, so the author's atr_kam on mesh 1 must be gone, not kept alongside ours.
+        var outcome = HatCompatService.Apply(mod.Root, authored, proposal, []);
+        Assert.True(outcome.Ok, outcome.Message);
+
+        var after = mod.Model();
+        var src = SecondSkinWriter.Parse(after);
+        Assert.Equal(1, BitConverter.ToUInt16(after, src.Mh + 16));          // one shape, not two
+        var entry = Assert.Single(src.Shapes[HatCompatService.HatShape]);
+        var mesh0 = src.MeshStart;
+        Assert.Equal(BitConverter.ToUInt32(after, mesh0 + 16), entry.MeshIndexOffset);
+        int bit = Array.IndexOf(src.AttrNames, HatCompatService.ScalpAttribute);
+        for (int m = 0; m < src.MeshCount; m++)
+            Assert.Equal(0u, MaskOf(after, src, m) & (1u << bit));
+
+        Assert.True(HatCompatService.IsPatched(mod.Root, ModelRel, out _, out var replaced));
+        Assert.True(replaced);
+
+        var undo = HatCompatService.Revert(mod.Root, ModelRel);
+        Assert.True(undo.Ok, undo.Message);
+        Assert.Equal(authored, mod.Model());
+        Assert.False(File.Exists(mod.Record));
+    }
+
+    /// <summary>
+    /// Switching replacement off gives back the author's version on every hairstyle it replaced, in every mod —
+    /// and touches nothing Proteus fitted on a hairstyle that had no hat support to begin with.
+    /// </summary>
+    [Fact]
+    public void RestoringReplacedPutsBackOnlyTheAuthorsInEveryMod()
+    {
+        var modsRoot = Path.Combine(Path.GetTempPath(), "proteus_mods_" + Path.GetRandomFileName());
+        Directory.CreateDirectory(modsRoot);
+        try
+        {
+            var authored = AuthoredHair();
+            using var replaced = new Mod(authored, modsRoot);
+            var parts = ModelPartReader.Read(authored)!;
+            Assert.True(HatCompatService.Apply(replaced.Root, authored,
+                                               Proposal(authored, parts) with { Replaced = true }, []).Ok);
+
+            var plain = Hair();
+            using var fitted = new Mod(plain, modsRoot);
+            Assert.True(HatCompatService.Apply(fitted.Root, plain, Proposal(plain, ModelPartReader.Read(plain)!),
+                                               []).Ok);
+            var fittedBytes = fitted.Model();
+
+            var (restored, mods, failed) = HatCompatService.RestoreReplaced(modsRoot);
+
+            Assert.Empty(failed);
+            Assert.Equal(1, restored);
+            Assert.Equal([replaced.Root], mods);
+            Assert.Equal(authored, replaced.Model());               // the author's, byte for byte
+            Assert.Equal(fittedBytes, fitted.Model());              // Proteus's own fit stays
+            Assert.True(HatCompatService.IsPatched(fitted.Root, ModelRel, out _));
+
+            // Nothing left to restore the second time.
+            Assert.Equal(0, HatCompatService.RestoreReplaced(modsRoot).Restored);
+        }
+        finally { try { Directory.Delete(modsRoot, true); } catch { } }
+    }
+
+    /// <summary>
+    /// With nothing of its own to put in place, Proteus keeps the author's: throwing theirs away for an empty fit
+    /// would leave the hat clipping through hair the author had handled.
+    /// </summary>
+    [Fact]
+    public void ReplacingWithNothingKeepsTheAuthors()
+    {
+        var authored = AuthoredHair();
+        using var mod = new Mod(authored);
+        var parts = ModelPartReader.Read(authored)!;
+        var empty = new HatCompatService.Proposal(ModelRel, parts, HatCompatSolve.Result.None, false, Replaced: true);
+
+        Assert.False(HatCompatService.Apply(mod.Root, authored, empty, []).Ok);
+        Assert.Equal(authored, mod.Model());
         Assert.False(File.Exists(mod.Record));
     }
 

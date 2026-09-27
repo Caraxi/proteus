@@ -746,6 +746,49 @@ public static class ModelAttributeWriter
     }
 
     /// <summary>
+    /// Take every shape named <paramref name="shapeName"/> off the model, so a different one can be added under the
+    /// same name; the model comes back unchanged when it declares none.
+    /// <para/>
+    /// Only the 16-byte <c>Shape</c> records go. Their <c>ShapeMesh</c> and <c>ShapeValue</c> records, and the spare
+    /// vertices those select, stay in the file with nothing naming them: every other shape reaches its records by
+    /// GLOBAL start index, so removing records from those arrays would mean renumbering all of them, and leaving
+    /// them costs a few kilobytes that nothing reads. Likewise the name stays in the string table, as
+    /// <see cref="ClearAttribute"/> leaves an attribute's.
+    /// </summary>
+    public static byte[] RemoveShape(byte[] mdl, string shapeName)
+    {
+        var src = SecondSkinWriter.Parse(mdl);
+        ushort shapeCount = BitConverter.ToUInt16(mdl, src.Mh + 16);
+
+        var drop = new List<int>();
+        for (int si = 0; si < shapeCount; si++)
+        {
+            int at = src.ShapeBlock + si * 16;
+            if (at + 16 > mdl.Length)
+                throw new ModelEditException("this model's shape table runs past the end of the file");
+            if (string.Equals(StringAt(mdl, src, BitConverter.ToUInt32(mdl, at)), shapeName, StringComparison.Ordinal))
+                drop.Add(at);
+        }
+        if (drop.Count == 0) return mdl;
+
+        int removed = drop.Count * 16;
+        var o = new byte[mdl.Length - removed];
+        int read = 0, write = 0;
+        foreach (var at in drop)
+        {
+            Array.Copy(mdl, read, o, write, at - read);
+            write += at - read;
+            read = at + 16;
+        }
+        Array.Copy(mdl, read, o, write, mdl.Length - read);
+
+        // The model header and the LOD table sit ahead of the shape block, at the same positions as before.
+        W16(o, src.Mh + 16, (ushort)(shapeCount - drop.Count));
+        Shift(o, src.LodStart, -removed);
+        return o;
+    }
+
+    /// <summary>
     /// Whether the model declares a shape by this name. Reads the <c>Shape</c> records directly:
     /// <see cref="SecondSkinWriter.Source.Shapes"/> drops shapes without LOD0 entries.
     /// </summary>

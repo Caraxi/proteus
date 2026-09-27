@@ -50,6 +50,52 @@ public class HatCompatDiagTests(ITestOutputHelper o)
     }
 
     /// <summary>
+    /// Replacing an author's hat support, on every installed hair that has one: the author's <c>shp_hib</c> comes
+    /// off, a new one goes on under the same name, and the file still reads the same geometry. Real hair is
+    /// multi-stream and multi-LOD, which the synthetic fixtures are not. In memory only; nothing is written.
+    /// </summary>
+    [Fact]
+    public void ReplacingAnAuthorsHatShapeOnRealHair()
+    {
+        var files = HairModels();
+        if (files.Length == 0) return;
+
+        int replaced = 0, refused = 0;
+        foreach (var f in files)
+        {
+            var mdl = File.ReadAllBytes(f);
+            if (!HatCompatService.IsHatCompatible(mdl)) continue;
+            var before = ModelPartReader.Read(mdl);
+            if (before == null) continue;
+
+            var cleared = ModelAttributeWriter.RemoveShape(mdl, HatShape);
+            Assert.False(ModelAttributeWriter.DeclaresShape(cleared, HatShape), f);
+            Assert.True(before.Positions.AsSpan().SequenceEqual(ModelPartReader.Read(cleared)!.Positions), f);
+
+            // A one-vertex press on the first mesh that draws a triangle, standing in for a fit.
+            var part = before.Parts.First(p => p.Island < 0 && p.Triangles.Length > 0);
+            int local = part.Triangles[0] - before.MeshSpans.First(s => s.Mesh == part.Mesh).BaseVertex;
+            try
+            {
+                var ours = ModelAttributeWriter.AddShape(cleared, HatShape,
+                    new Dictionary<int, IReadOnlyDictionary<int, System.Numerics.Vector3>>
+                    {
+                        [part.Mesh] = new Dictionary<int, System.Numerics.Vector3> { [local] = default },
+                    });
+                Assert.True(ModelAttributeWriter.DeclaresShape(ours, HatShape), f);
+                Assert.NotNull(ModelPartReader.Read(ours));
+                replaced++;
+            }
+            catch (ModelAttributeWriter.ModelEditException ex)
+            {
+                refused++;
+                o.WriteLine($"refused {Path.GetFileName(f)}: {ex.Message}");
+            }
+        }
+        o.WriteLine($"replaced {replaced}, refused {refused}");
+    }
+
+    /// <summary>
     /// How common hat compatibility actually is, and — the part that matters — whether the two halves of
     /// it travel together. If <c>shp_hib</c> without <c>atr_kam</c> were common, "smush AND hide" would be
     /// the wrong model of the feature.

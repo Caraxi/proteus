@@ -1407,6 +1407,18 @@
     "message": "La mayoría del pelo modificado no admite sombreros, así que un sombrero puesto\nencima lo atraviesa. Con esta opción activada, Proteus espera a que lleves un\nsombrero y entonces aplasta contra la cabeza el pelo que ese sombrero taparía.\n\nEsto edita los archivos del propio mod de pelo, así que sigue funcionando con\nProteus desactivado y viaja con el mod si lo exportas. Los originales se\nconservan y el cambio se puede deshacer aquí.",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "Reemplazar el soporte para sombreros que trae un peinado",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "Algunos peinados traen un soporte para sombreros hecho a mano por su autor. Desactivado,\nProteus los deja como están. Activado, Proteus descarta la versión del autor y\najusta el peinado por sí mismo, igual que uno que no trae ninguno.\n\nDesactivado por defecto: el ajuste hecho a mano por el autor suele ser mejor. La versión\ndel autor se conserva y vuelve cuando lo desactivas de nuevo.",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "Este peinado trae su propio soporte para sombreros. Según lo configurado arriba, Proteus lo reemplazará por su propio ajuste.",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "Ocultar las coletas",
     "description": ""

@@ -1407,6 +1407,18 @@
     "message": "Die meisten Haar-Mods unterstützen keine Hüte, sodass ein Hut einfach\nhindurchgeht. Ist dies aktiv, wartet Proteus, bis du einen Hut trägst, und\ndrückt dann das Haar, das der Hut verdecken würde, flach an den Kopf.\n\nDies bearbeitet die Dateien des Haar-Mods selbst, funktioniert also auch bei\nabgeschaltetem Proteus und bleibt beim Exportieren erhalten. Die Originale\nwerden aufbewahrt und die Änderung lässt sich hier rückgängig machen.",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "Mitgelieferte Hutunterstützung einer Frisur ersetzen",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "Manche Frisuren bringen eine vom Autor von Hand gemachte Hutunterstützung mit. Ist dies aus,\nlässt Proteus sie unverändert. Ist es an, verwirft Proteus die Version des Autors und\npasst die Frisur selbst an, wie eine Frisur ohne Hutunterstützung.\n\nStandardmäßig aus: Die Handarbeit des Autors passt meist besser. Die Version des Autors\nwird aufbewahrt und kehrt zurück, wenn du dies wieder ausschaltest.",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "Diese Frisur bringt eine eigene Hutunterstützung mit. Wie oben eingestellt, ersetzt Proteus sie durch seine eigene Anpassung.",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "Zöpfe ausblenden",
     "description": ""

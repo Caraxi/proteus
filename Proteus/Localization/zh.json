@@ -1407,6 +1407,18 @@
     "message": "大多数模组发型都不支持帽子，戴上帽子会直接穿模。开启后，Proteus 会等你戴上\n帽子，再把帽子会遮住的头发压贴到头部。\n\n这会修改发型模组自身的文件，因此即使关闭 Proteus 也依然有效，导出模组时也会\n一并带走。原始文件会被保留，改动可以在这里撤销。",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "替换发型自带的帽子支持",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "有些发型自带作者手工制作的帽子支持。关闭时，\nProteus 不会改动它们。开启后，Proteus 会丢弃作者的版本，\n像处理没有帽子支持的发型一样自行适配。\n\n默认关闭：作者手工的适配通常更好。作者的版本会被保留，\n再次关闭此选项时会恢复。",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "这个发型自带帽子支持。按照上面的设置，Proteus 会用自己的适配替换它。",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "隐藏马尾",
     "description": ""

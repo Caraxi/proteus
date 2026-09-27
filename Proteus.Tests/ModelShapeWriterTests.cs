@@ -489,4 +489,70 @@ public class ModelShapeWriterTests
         Assert.Throws<ModelAttributeWriter.ModelEditException>(() =>
             ModelAttributeWriter.AddShape(before, "shp_hib", Move(0, (0, Vector3.Zero))));
     }
+
+    // ── removing a shape ────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Removing a shape leaves every OTHER shape selecting exactly what it selected, and the vertex and index data
+    /// untouched. Only the removed shape's 16-byte record goes, so every absolute offset moves back by 16 and
+    /// nothing else moves at all.
+    /// </summary>
+    [Fact]
+    public void RemovingOneShapeLeavesTheOthersExactlyAsTheyWere()
+    {
+        var withBoth = ModelAttributeWriter.AddShape(TwoMesh(), "shp_hib", Move(0, (1, new Vector3(5, 6, 7))));
+        withBoth = ModelAttributeWriter.AddShape(withBoth, "shp_other", Move(1, (0, new Vector3(1, 2, 3))));
+        var before = SecondSkinWriter.Parse(withBoth);
+
+        var after = ModelAttributeWriter.RemoveShape(withBoth, "shp_hib");
+        var now = SecondSkinWriter.Parse(after);
+
+        Assert.Equal(withBoth.Length - 16, after.Length);
+        Assert.False(ModelAttributeWriter.DeclaresShape(after, "shp_hib"));
+        Assert.True(ModelAttributeWriter.DeclaresShape(after, "shp_other"));
+        Assert.Equal(1, U16(after, now.Mh + 16));
+
+        // The survivor still names the same slots and the same spare.
+        var was = before.Shapes["shp_other"];
+        var still = now.Shapes["shp_other"];
+        Assert.Equal(was.Count, still.Count);
+        for (int i = 0; i < was.Count; i++)
+        {
+            Assert.Equal(was[i].MeshIndexOffset, still[i].MeshIndexOffset);
+            Assert.Equal(was[i].Values, still[i].Values);
+        }
+
+        // The vertex and index data are the same bytes, 16 bytes earlier, and the header says so.
+        Assert.Equal(before.Vb - 16, now.Vb);
+        Assert.Equal(before.Ib - 16, now.Ib);
+        Assert.Equal(withBoth[before.Vb..], after[now.Vb..]);
+        Assert.Equal(U32(withBoth, 8) - 16, U32(after, 8));                                  // RuntimeSize
+        Assert.Equal(U32(withBoth, before.LodStart + 52) - 16, U32(after, now.LodStart + 52));   // LOD0 data
+
+        Assert.Equal(ModelPartReader.Read(withBoth)!.Positions, ModelPartReader.Read(after)!.Positions);
+    }
+
+    /// <summary>What removal is for: a shape of the same name can go back on.</summary>
+    [Fact]
+    public void AShapeCanBeAddedAgainUnderTheNameThatWasRemoved()
+    {
+        var authored = ModelAttributeWriter.AddShape(TwoMesh(), "shp_hib", Move(0, (1, new Vector3(5, 6, 7))));
+        Assert.Throws<ModelAttributeWriter.ModelEditException>(() =>
+            ModelAttributeWriter.AddShape(authored, "shp_hib", Move(1, (0, Vector3.Zero))));
+
+        var cleared = ModelAttributeWriter.RemoveShape(authored, "shp_hib");
+        var ours = ModelAttributeWriter.AddShape(cleared, "shp_hib", Move(1, (0, new Vector3(1, 2, 3))));
+
+        var src = SecondSkinWriter.Parse(ours);
+        Assert.Equal(1, U16(ours, src.Mh + 16));
+        var entry = Assert.Single(src.Shapes["shp_hib"]);
+        Assert.Equal(MeshAt(ours, 1).Start, entry.MeshIndexOffset);   // ours, on mesh 1 — not the author's on mesh 0
+    }
+
+    [Fact]
+    public void RemovingAShapeTheModelDoesNotHaveChangesNothing()
+    {
+        var before = TwoMesh();
+        Assert.Same(before, ModelAttributeWriter.RemoveShape(before, "shp_hib"));
+    }
 }

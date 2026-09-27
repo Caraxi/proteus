@@ -1407,6 +1407,18 @@
     "message": "Modの髪の多くは帽子に対応しておらず、上から帽子をかぶると突き抜けてしまいま\nす。オンにすると、Proteusは帽子をかぶるまで待ち、その帽子で隠れる部分の\n髪を頭に沿って押し付けます。\n\nこれは髪Mod自身のファイルを編集するため、Proteusを無効にしても機能し、Modを\nエクスポートすれば一緒に持ち運べます。元のファイルは保管され、変更はここから\n元に戻せます。",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "髪型に付属の帽子対応を置き換える",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "髪型によっては、作者が手作業で帽子対応を組み込んでいるものがあります。\nオフのとき、Proteus はそれらに手を加えません。オンにすると、作者の対応を破棄し、\n帽子対応のない髪型と同じように Proteus が自分で調整します。\n\n既定はオフです。作者の手作業による調整のほうが通常は良い結果になります。\n作者の版は保管されており、再びオフにすると元に戻ります。",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "この髪型には独自の帽子対応が付属しています。上の設定に従い、Proteus が独自の調整に置き換えます。",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "ポニーテールを隠す",
     "description": ""
