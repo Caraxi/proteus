@@ -602,10 +602,16 @@ internal static partial class BodyRetarget
             }
         }
 
+        // Only LOD0 was moved. The rebuild above writes LOD0 alone; an in-place refit still carries the author's other
+        // levels, fitted to the old body, and the game draws them from a distance — so they are cut. What the cut
+        // refuses keeps them, and the report says so, read off the model actually written.
+        if (ModelLodTrimmer.LodCount(model) > 1 && ModelLodTrimmer.KeepLod0(model, out _) is { } trimmed)
+            model = trimmed;
+
         var report = new Report(garment.Positions.Length / 3, solved.Snapped, solved.Transferred, solved.Missed,
                                 solved.Pushed, solved.WorstMove, solved.WorstPush,
-                                written.UnmappedSpares, written.HasOtherLods, solved.Held, solved.Laid, swap,
-                                solved.Folded);
+                                written.UnmappedSpares, ModelLodTrimmer.LodCount(model) > 1, solved.Held, solved.Laid,
+                                swap, solved.Folded);
         return new Planned(solved.Edit, model, report);
     }
 

@@ -97,7 +97,7 @@ public static partial class SecondSkinWriter
     /// v6 bone tables: a header per table ({u16 offset, u16 size}) followed by the index data. The offset
     /// is in DWORDS and relative to that table's OWN header — not to the section start.
     /// </summary>
-    private static void WriteBoneTablesV6(MemoryStream ms, List<ushort[]> tables)
+    internal static void WriteBoneTablesV6(MemoryStream ms, List<ushort[]> tables)
     {
         long start = ms.Position;
         int headerBytes = tables.Count * 4;
@@ -212,7 +212,7 @@ public static partial class SecondSkinWriter
 
     /// <summary>First .mdl version with the Dawntrail bone-table layout (a header array plus a shared index
     /// pool). Anything older stores a fixed <see cref="V5BoneTableBytes"/>-byte struct per table.</summary>
-    private const uint MdlVersionV6 = 0x01000006;
+    internal const uint MdlVersionV6 = 0x01000006;
 
     /// <summary>
     /// Where a mesh's uv1 lives, shared by <see cref="BuildVerbatim"/> and <see cref="CopyVerbatim"/>: packed in

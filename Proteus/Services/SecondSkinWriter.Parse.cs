@@ -390,7 +390,7 @@ public static partial class SecondSkinWriter
     internal readonly record struct ShapeMeshEntry(uint MeshIndexOffset, (ushort Base, ushort Replace)[] Values);
 
     /// <summary>v5 bone table: <c>u16 BoneIndex[64]</c> then <c>u32 BoneCount</c>.</summary>
-    private const int V5BoneTableBytes = 132;
+    internal const int V5BoneTableBytes = 132;
 
     internal static Source Parse(byte[] s)
     {

@@ -89,6 +89,25 @@ public class MeshVolumeServiceTests
     /// place is only safe because nothing changes the file's length — no offset in the header moves, and
     /// every table, string, bone map and opaque tail stays exactly where it was.
     /// </summary>
+    /// <summary>
+    /// The level count is ONE byte of the model header; the next is Flags1. Read as a u16 they called a one-level model
+    /// with a flag set multi-level (Neolithe's chests: 1025), and every refit of one warned it would look like the old
+    /// size from a distance.
+    /// </summary>
+    [Fact]
+    public void A_one_level_model_with_flags_set_is_one_level()
+    {
+        var (mdl, solve, model) = Setup();
+        int mh = SecondSkinWriter.Parse(mdl).Mh;
+        Assert.Equal(1, mdl[mh + 22]);
+        mdl[mh + 23] = 0x04;
+
+        var centre = new Vector3(model.Positions[0], model.Positions[1], model.Positions[2]);
+        solve.Paint(centre, 10f, 0.002f);
+        solve.EndStroke();
+        Assert.False(MeshVolumeService.Inflate(mdl, solve).HasOtherLods);
+    }
+
     [Fact]
     public void WritesPositionsInPlaceAndTouchesNothingElse()
     {
