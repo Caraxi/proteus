@@ -205,8 +205,24 @@ public partial class CompositorService
     private void LogRefreshTimeline(RefreshTimeline tl, string outcome)
     {
         tl.Completed = true;
-        log.Information("[Proteus] refresh timeline: {0:F0}ms from first trigger to {1} ({2} trigger(s): {3}) — {4}",
-            tl.TotalMs, outcome, tl.Triggers, tl.Reasons.Length == 0 ? "?" : tl.Reasons, tl.Describe());
+        log.Information("[Proteus] refresh timeline: {0:F0}ms from first trigger to {1} ({2} trigger(s): {3}) — {4}{5}",
+            tl.TotalMs, outcome, tl.Triggers, tl.Reasons.Length == 0 ? "?" : tl.Reasons, tl.Describe(),
+            DescribePenumbraMainThread());
+    }
+
+    /// <summary>
+    /// What this run's changes to Penumbra cost the main thread, which is where they now run (see
+    /// <c>PenumbraBridge.OnMainThread</c>): "; penumbra on main thread: reload 4ms ×2, writes 1ms ×1, waited 38ms".
+    /// Reload is the time a stalled frame pays; waited is how long the composite stood still for it, the hop to the
+    /// next frame included. Empty when the run changed nothing.
+    /// </summary>
+    private string DescribePenumbraMainThread()
+    {
+        var r = penumbra.ReloadStats;
+        var w = penumbra.WriteStats;
+        if (r.Calls == 0 && w.Calls == 0) return "";
+        return $"; penumbra on main thread: reload {r.Ms:F0}ms ×{r.Calls}, writes {w.Ms:F0}ms ×{w.Calls}, " +
+               $"waited {penumbra.MainThreadWaitStats.Ms:F0}ms";
     }
 
     /// <summary>The name of the first differing fingerprint block, cut short.</summary>

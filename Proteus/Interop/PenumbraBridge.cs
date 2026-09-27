@@ -53,6 +53,17 @@ public class PenumbraBridge : IDisposable
 
     public bool IsAvailable { get; private set; }
 
+    /// <summary>Time Penumbra spent on the main thread reloading mods for us: the reload's own work and every
+    /// listener's handler. Reset and reported by the compositor per run, on the refresh timeline.</summary>
+    public readonly Services.PhaseCounter ReloadStats = new();
+
+    /// <summary>The same for every other change to mods or their settings (enable, priority, options, temporary
+    /// settings, temporary mods, add, delete).</summary>
+    public readonly Services.PhaseCounter WriteStats = new();
+
+    /// <summary>How long background callers waited for those changes, the hop to the main thread included.</summary>
+    public readonly Services.PhaseCounter MainThreadWaitStats = new();
+
     public event Action<ModSettingChange, Guid, string, bool>? ModSettingChanged;
     public event Action<string>? ModAdded;
     public event Action<string>? ModDeleted;
@@ -256,7 +267,7 @@ public class PenumbraBridge : IDisposable
     public PenumbraApiEc ClearTemporaryModSettings(Guid collectionId, string modDirectory)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return removeTemporaryModSettings.Invoke(collectionId, modDirectory); }
+        try { return OnMainThread(() => removeTemporaryModSettings.Invoke(collectionId, modDirectory), WriteStats); }
         catch (Exception ex) { log.Error(ex, "RemoveTemporaryModSettings failed for {0}", modDirectory); return PenumbraApiEc.UnknownError; }
     }
 
@@ -277,7 +288,8 @@ public class PenumbraBridge : IDisposable
         {
             var settings = new Dictionary<string, IReadOnlyList<string>>(options.Count);
             foreach (var (group, selected) in options) settings[group] = selected;
-            return setTemporaryModSettings.Invoke(collectionId, modDirectory, inherit: false, enabled, priority, settings, source, key);
+            return OnMainThread(() => setTemporaryModSettings.Invoke(collectionId, modDirectory, inherit: false, enabled,
+                                                                    priority, settings, source, key), WriteStats);
         }
         catch (Exception ex) { log.Error(ex, "SetTemporaryModSettings failed for {0}", modDirectory); return PenumbraApiEc.UnknownError; }
     }
@@ -286,7 +298,7 @@ public class PenumbraBridge : IDisposable
     public PenumbraApiEc RemoveAllTemporaryModSettings(Guid collectionId, int key)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return removeAllTemporaryModSettings.Invoke(collectionId, key); }
+        try { return OnMainThread(() => removeAllTemporaryModSettings.Invoke(collectionId, key), WriteStats); }
         catch (Exception ex) { log.Error(ex, "RemoveAllTemporaryModSettings failed"); return PenumbraApiEc.UnknownError; }
     }
 
@@ -456,11 +468,40 @@ public class PenumbraBridge : IDisposable
         }
     }
 
+    /// <summary>
+    /// Run a change to Penumbra's mods on the main thread, waiting for it from anywhere else.
+    /// <para/>
+    /// Penumbra does such a change on the calling thread and raises its events there, inline — a reload of an enabled
+    /// mod raises <c>ModSettingChanged(Edited)</c> for the player's collection. Every other plugin's handler then runs on
+    /// our thread. Glamourer's Unlocks table rewrites the list it is drawing from in that handler, so a composite's
+    /// reload from the composite thread crashed its window ("Collection was modified") whenever gear was applied from
+    /// it. Penumbra's own UI makes these changes on the main thread, which is what every listener expects.
+    /// <para/>
+    /// Callers already on the main thread (the UI, event handlers, the import pumps) run straight through. Only the IPC
+    /// call moves: the work around it — the composite, the settle polling after a reload — stays where it was.
+    /// </summary>
+    private T OnMainThread<T>(Func<T> change, Services.PhaseCounter stats)
+    {
+        var framework = Plugin.Framework;
+        if (framework == null || framework.IsInFrameworkUpdateThread) return Timed(change, stats);
+
+        var waited = Services.PhaseCounter.Begin();
+        try { return framework.RunOnFrameworkThread(() => Timed(change, stats)).GetAwaiter().GetResult(); }
+        finally { MainThreadWaitStats.Stop(waited); }
+    }
+
+    private static T Timed<T>(Func<T> change, Services.PhaseCounter stats)
+    {
+        var t0 = Services.PhaseCounter.Begin();
+        try { return change(); }
+        finally { stats.Stop(t0); }
+    }
+
     /// <summary>Register a new mod directory with Penumbra.</summary>
     public PenumbraApiEc AddModDirectory(string modDirectory)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return addMod.Invoke(modDirectory); }
+        try { return OnMainThread(() => addMod.Invoke(modDirectory), WriteStats); }
         catch (Exception ex) { log.Error(ex, "AddMod failed"); return PenumbraApiEc.UnknownError; }
     }
 
@@ -469,15 +510,15 @@ public class PenumbraBridge : IDisposable
     public PenumbraApiEc DeleteModDirectory(string modDirectory)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return deleteMod.Invoke(modDirectory); }
+        try { return OnMainThread(() => deleteMod.Invoke(modDirectory), WriteStats); }
         catch (Exception ex) { log.Error(ex, "DeleteMod failed"); return PenumbraApiEc.UnknownError; }
     }
 
-    /// <summary>Tell Penumbra to reload a mod from disk.</summary>
+    /// <summary>Tell Penumbra to reload a mod from disk. On the main thread — see <see cref="OnMainThread{T}"/>.</summary>
     public PenumbraApiEc ReloadModDirectory(string modDirectory)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return reloadMod.Invoke(modDirectory); }
+        try { return OnMainThread(() => reloadMod.Invoke(modDirectory), ReloadStats); }
         catch (Exception ex) { log.Error(ex, "ReloadMod failed"); return PenumbraApiEc.UnknownError; }
     }
 
@@ -485,7 +526,7 @@ public class PenumbraBridge : IDisposable
     public PenumbraApiEc SetModEnabled(Guid collectionId, string modDirectory, bool enabled)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return trySetMod.Invoke(collectionId, modDirectory, enabled); }
+        try { return OnMainThread(() => trySetMod.Invoke(collectionId, modDirectory, enabled), WriteStats); }
         catch (Exception ex) { log.Error(ex, "TrySetMod failed"); return PenumbraApiEc.UnknownError; }
     }
 
@@ -493,7 +534,7 @@ public class PenumbraBridge : IDisposable
     public PenumbraApiEc SetModPriority(Guid collectionId, string modDirectory, int priority)
     {
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
-        try { return trySetModPriority.Invoke(collectionId, modDirectory, priority); }
+        try { return OnMainThread(() => trySetModPriority.Invoke(collectionId, modDirectory, priority), WriteStats); }
         catch (Exception ex) { log.Error(ex, "TrySetModPriority failed"); return PenumbraApiEc.UnknownError; }
     }
 
@@ -506,9 +547,9 @@ public class PenumbraBridge : IDisposable
         if (!IsAvailable) return PenumbraApiEc.SystemDisposed;
         try
         {
-            return options.Count == 1
+            return OnMainThread(() => options.Count == 1
                 ? trySetModSetting.Invoke(collectionId, modDirectory, groupName, options[0])
-                : trySetModSettings.Invoke(collectionId, modDirectory, groupName, options);
+                : trySetModSettings.Invoke(collectionId, modDirectory, groupName, options), WriteStats);
         }
         catch (Exception ex) { log.Error(ex, "TrySetModSetting(s) failed for {0}/{1}", modDirectory, groupName); return PenumbraApiEc.UnknownError; }
     }
@@ -529,7 +570,7 @@ public class PenumbraBridge : IDisposable
         try
         {
             Interlocked.Exchange(ref lastOwnTemporaryModTick, Environment.TickCount64);   // before: the echo can be synchronous
-            var ec = addTemporaryMod.Invoke(tag, collection, paths, string.Empty, priority);
+            var ec = OnMainThread(() => addTemporaryMod.Invoke(tag, collection, paths, string.Empty, priority), WriteStats);
             if (ec == PenumbraApiEc.Success) return true;
             log.Warning("[Proteus] AddTemporaryMod {0} -> {1}", tag, ec);
             return false;
@@ -544,7 +585,7 @@ public class PenumbraBridge : IDisposable
         try
         {
             Interlocked.Exchange(ref lastOwnTemporaryModTick, Environment.TickCount64);
-            var ec = removeTemporaryMod.Invoke(tag, collection, priority);
+            var ec = OnMainThread(() => removeTemporaryMod.Invoke(tag, collection, priority), WriteStats);
             return ec is PenumbraApiEc.Success or PenumbraApiEc.NothingChanged;
         }
         catch (Exception ex) { log.Error(ex, "RemoveTemporaryMod failed"); return false; }
