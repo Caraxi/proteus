@@ -50,9 +50,13 @@ internal static class BodyCorrespondence
         string? from = LayoutOf(source, male), to = LayoutOf(target, male);
         if (from != null && to != null && from != to)
         {
-            // A mirrored layout (gen2) shares one half between both sides; unmirroring sends each side to its own.
-            // The maps are all between women's layouts; a man's has none, so a male pair in two layouts is refused.
-            convert = IsMaleLayout(from) || IsMaleLayout(to) ? null : uvRemap?.UvConverter(from, to, unmirror: true);
+            // A mirrored layout (gen2) shares one half between both sides; unmirroring sends each side to its own, and
+            // folding lands a point of the other side on the half a mirrored target keeps — the atlas then picks the
+            // twin on the point's own side. The transfer maps are all between women's layouts; of a man's, only the
+            // game's and The Body's convert, and those by the affine alone (TBSE is the vanilla sheet doubled).
+            bool mapped = IsMaleLayout(from) == IsMaleLayout(to)
+                       && (!IsMaleLayout(from) || (IsAffineMale(from) && IsAffineMale(to)));
+            convert = mapped ? uvRemap?.UvConverter(from, to, unmirror: true, fold: true) : null;
             if (convert == null)
             {
                 correspondence = null;
@@ -107,5 +111,8 @@ internal static class BodyCorrespondence
     }
 
     private static bool IsMaleLayout(string layout) => layout == "tbse" || layout.StartsWith("male ", StringComparison.Ordinal);
+
+    private static bool IsAffineMale(string layout)
+        => layout == UVRemapService.TbseSpace || layout == UVRemapService.MaleVanillaSpace;
 
 }

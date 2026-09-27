@@ -104,13 +104,22 @@ public class UVRemapService
     public const string FaceSplitSpace = "facelr";
 
     /// <summary>
-    /// The asymmetric space a mirrored one is one half of (gen2 → bibo, face → facelr), or null when the space is not
-    /// mirrored. Both pairs convert by the same affine.
+    /// The asymmetric space a mirrored one is one half of (gen2 → bibo, face → facelr, a man's vanilla body → The
+    /// Body's "tbse"), or null when the space is not mirrored. Every pair converts by the same affine. Measured for
+    /// the men's: TBSE's own <c>_b_d.tex</c> is 2048 wide, its right half byte-identical to the 1024-wide vanilla
+    /// <c>_d.tex</c> it ships beside it, its left half that sheet's mirror.
     /// </summary>
     public static string? DoubledSpaceOf(string? space)
         => string.Equals(space, "gen2", StringComparison.OrdinalIgnoreCase) ? "bibo"
          : string.Equals(space, FaceSpace, StringComparison.OrdinalIgnoreCase) ? FaceSplitSpace
+         : string.Equals(space, MaleVanillaSpace, StringComparison.OrdinalIgnoreCase) ? TbseSpace
          : null;
+
+    /// <summary>A man's vanilla body layout, mirrored like gen2. Named apart from gen2: the two sheets differ.</summary>
+    public const string MaleVanillaSpace = "male vanilla";
+
+    /// <summary>The Body's layout (TBSE and the bodies built on it): the man's vanilla sheet doubled.</summary>
+    public const string TbseSpace = "tbse";
 
     /// <summary>
     /// A per-vertex UV converter, the geometry counterpart of <see cref="Remap"/>: maps a UV in <paramref name="from"/>
@@ -119,8 +128,11 @@ public class UVRemapService
     /// Converting out of space S uses the map whose destination is S. Mirrored spaces enter and leave by halving U.
     /// <paramref name="unmirror"/> sends a -X vertex coming out of a mirrored space to the mirrored half, so asymmetric
     /// art survives a vanilla body.
+    /// <paramref name="fold"/> sends a point on the doubled sheet's mirrored half, going INTO a mirrored space, to its
+    /// twin on the kept half instead of reporting it unmapped. Right for matching two bodies point to point, where the
+    /// caller tells the twins apart by position; wrong for art, which would come out symmetric.
     /// </summary>
-    public UvConversion? UvConverter(string? from, string? to, bool unmirror = false)
+    public UvConversion? UvConverter(string? from, string? to, bool unmirror = false, bool fold = false)
     {
         if (from == null || to == null) return null;
         if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase)) return null;
@@ -154,12 +166,16 @@ public class UVRemapService
             if (s.ToMirrored)
             {
                 // A mirrored space is only the right half of its doubled counterpart; a left-half point would get a
-                // negative u that wraps and smears, so report it unmapped.
-                if (u < 0.5f) return null;
+                // negative u that wraps and smears, so report it unmapped — or, folding, take its twin.
+                if (u < 0.5f)
+                {
+                    if (!s.Fold) return null;
+                    u = MirrorU(u);
+                }
                 u = (u - 0.5f) * 2f;
             }
             return (u, v);
-        }, (Map: map, FromMirrored: fromMirrored, ToMirrored: toMirrored, Unmirror: unmirror));
+        }, (Map: map, FromMirrored: fromMirrored, ToMirrored: toMirrored, Unmirror: unmirror, Fold: fold));
     }
 
     /// <summary>

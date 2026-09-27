@@ -156,4 +156,50 @@ public class UvConverterTests
         Assert.NotEqual(first, second);
         Assert.Equal(first, firstAgain);
     }
+
+    // ── men's bodies ─────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// The Body's sheet is the man's vanilla sheet doubled, as bibo is gen2's: measured on TBSE's own textures, the
+    /// right half of its 2048-wide <c>_b_d.tex</c> is byte-identical to the 1024-wide vanilla one. So the pair takes
+    /// gen2 → bibo's affine exactly, with no transfer map.
+    /// </summary>
+    [Fact]
+    public void A_man_s_vanilla_sheet_goes_into_tbse_as_gen2_goes_into_bibo()
+    {
+        var uv = Service();
+        var men = uv.UvConverter("male vanilla", "tbse", unmirror: true);
+        var women = uv.UvConverter("gen2", "bibo", unmirror: true)!;
+        Assert.NotNull(men);
+
+        foreach (var u in new[] { 0f, 0.2f, 0.5f, 0.9f, 1f })
+        foreach (var side in new[] { 1, -1 })
+            Assert.Equal(women(u, 0.3f, side), men!(u, 0.3f, side));
+    }
+
+    [Fact]
+    public void Tbse_comes_back_to_a_man_s_vanilla_sheet()
+    {
+        var conv = Service().UvConverter("tbse", "male vanilla")!;
+        Assert.Equal((0.5f, 0.5f), conv(0.75f, 0.5f, NoSide));
+        Assert.Null(conv(0.25f, 0.5f, NoSide));
+    }
+
+    /// <summary>
+    /// Matching two bodies point to point, the doubled sheet's other half is not "nowhere" on a mirrored one: it is
+    /// the twin of a point on the kept half, and the caller tells the two apart by which side of the body it is on.
+    /// </summary>
+    [Fact]
+    public void Folding_lands_the_other_half_on_its_twin()
+    {
+        var uv = Service();
+        var fold = uv.UvConverter("bibo", "gen2", unmirror: true, fold: true)!;
+
+        Assert.Equal(fold(0.75f, 0.4f, -1), fold(0.25f, 0.4f, -1));
+        Assert.Equal((0.5f, 0.4f), fold(0.25f, 0.4f, -1)!.Value);
+        Assert.NotNull(uv.UvConverter("tbse", "male vanilla", fold: true)!(0.1f, 0.2f, NoSide));
+
+        // Without the flag the other half stays unmapped, which is what keeps a shell's asymmetric art asymmetric.
+        Assert.Null(uv.UvConverter("bibo", "gen2", unmirror: true)!(0.25f, 0.4f, -1));
+    }
 }

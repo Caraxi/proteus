@@ -111,16 +111,35 @@ public class BodyRaceTests
         Assert.DoesNotContain("female", refusal);
     }
 
-    [Fact]
-    public void Two_men_s_bodies_in_different_layouts_are_refused_by_layout()
+    /// <summary>
+    /// The Body's layout is the game's man's sheet doubled, so the two convert by the affine alone, both ways — the
+    /// pair users hit refitting vanilla gear onto TBSE, once refused as "no map between them".
+    /// </summary>
+    [Theory]
+    [InlineData("/mt_c0101b0001_a.mtrl", "/mt_c0101b0001_b.mtrl")]
+    [InlineData("/mt_c0101b0001_b.mtrl", "/mt_c0101b0001_a.mtrl")]
+    public void A_man_s_vanilla_body_and_tbse_pair_without_a_map(string fromMaterial, string toMaterial)
     {
-        var tbse = Body("/mt_c0101b0001_b.mtrl", triangles: 3);
-        var vanilla = Body("/mt_c0101b0001_a.mtrl", triangles: 4, offsetX: 0.01f);
-        var sourceUv = new float[tbse.Positions.Length / 3 * 2];
-        var targetUv = new float[vanilla.Positions.Length / 3 * 2];
+        var source = Body(fromMaterial, triangles: 3);
+        var target = Body(toMaterial, triangles: 4, offsetX: 0.01f);
+        var sourceUv = new float[source.Positions.Length / 3 * 2];
+        var targetUv = new float[target.Positions.Length / 3 * 2];
 
-        Assert.False(BodyCorrespondence.TryBuild(tbse, sourceUv, vanilla, targetUv, "chest", out _, out string refusal,
+        BodyCorrespondence.TryBuild(source, sourceUv, target, targetUv, "chest", out _, out string refusal, NoMaps(),
+                                    male: true);
+        Assert.DoesNotContain("texture layouts", refusal);
+    }
+
+    [Fact]
+    public void A_man_s_body_in_a_layout_with_no_conversion_is_still_refused_by_layout()
+    {
+        var bibo = Body("/mt_c0101b0001_bibo.mtrl", triangles: 3);
+        var tbse = Body("/mt_c0101b0001_b.mtrl", triangles: 4, offsetX: 0.01f);
+        var sourceUv = new float[bibo.Positions.Length / 3 * 2];
+        var targetUv = new float[tbse.Positions.Length / 3 * 2];
+
+        Assert.False(BodyCorrespondence.TryBuild(bibo, sourceUv, tbse, targetUv, "chest", out _, out string refusal,
                                                  NoMaps(), male: true));
-        Assert.Contains("different texture layouts (tbse and male vanilla)", refusal);
+        Assert.Contains("different texture layouts (male bibo and tbse)", refusal);
     }
 }

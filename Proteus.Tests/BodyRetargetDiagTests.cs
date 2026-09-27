@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using Dalamud.Plugin.Services;
+using NSubstitute;
 using Proteus.Services;
 using Xunit;
 using Xunit.Abstractions;
@@ -1752,6 +1754,43 @@ public class BodyRetargetDiagTests(ITestOutputHelper output)
             output.WriteLine("  nothing  " + ClothAgainst(bytes, author));
             output.WriteLine("  refit    " + ClothAgainst(planned.Model, author));
             output.WriteLine("  " + IvcsShare(bytes, planned.Model));
+        }
+    }
+
+    /// <summary>
+    /// The game's own man's chest against TBSE's, both ways, on the real meshes. TBSE's sheet is the vanilla one
+    /// doubled (its textures say so), so the affine alone should land nearly every skin vertex; this says whether the
+    /// meshes' uvs agree with the textures, and whether folding carries TBSE's other side back onto a mirrored body.
+    /// </summary>
+    [Fact]
+    public void A_man_s_vanilla_chest_pairs_with_tbse_by_the_affine()
+    {
+        if (!Directory.Exists(TbseRoot)) return;
+        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
+                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
+        var sqpack = Path.Combine(game, "game", "sqpack");
+        if (!Directory.Exists(sqpack)) { output.WriteLine($"no game data at {sqpack}"); return; }
+        var data = new Lumina.GameData(sqpack);
+        var vanillaBytes = data.GetFile("chara/human/c0101/obj/body/b0001/model/c0101b0001_top.mdl")!.Data;
+
+        var tbse = BodySizeCatalog.Read(TbseRoot);
+        var tbseBytes = File.ReadAllBytes(tbse.PathOf(tbse.For("_top", "0101").Single()));
+        var vanilla = ModelPartReader.Read(vanillaBytes)!;
+        var body = ModelPartReader.Read(tbseBytes)!;
+        var uvRemap = new UVRemapService(Substitute.For<IPluginLog>(), ".");
+        output.WriteLine($"layouts: {BodyCorrespondence.LayoutOf(vanilla, male: true)} / " +
+                         $"{BodyCorrespondence.LayoutOf(body, male: true)}");
+
+        foreach (var (label, s, su, t, tu) in new[]
+                 {
+                     ("vanilla -> tbse", vanilla, Uv(vanillaBytes), body, Uv(tbseBytes)),
+                     ("tbse -> vanilla", body, Uv(tbseBytes), vanilla, Uv(vanillaBytes)),
+                 })
+        {
+            bool ok = BodyCorrespondence.TryBuild(s, su, t, tu, "chest", out var built, out string refusal, uvRemap,
+                                                  male: true);
+            output.WriteLine($"{label}: {(ok ? built!.Describe() : refusal)}");
+            Assert.True(ok, refusal);
         }
     }
 
