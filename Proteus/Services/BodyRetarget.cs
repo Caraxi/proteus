@@ -686,6 +686,12 @@ internal static partial class BodyRetarget
         // Past the push-out, so whatever unfolding gives up is judged against the skin it would be given up into.
         int folded = Unfold(sets, nodeDelta, snapped, drawn == null ? null : SignedOff(drawn));
 
+        // Never write a NaN into the file: one spreads through every smoothing pass it touches, and the model it lands in
+        // draws nothing there and threw every frame from the Parts preview. A node with no finite answer stays put.
+        for (int n = 0; n < sets.NodeCount; n++)
+            if (!float.IsFinite(nodeDelta[n].X) || !float.IsFinite(nodeDelta[n].Y) || !float.IsFinite(nodeDelta[n].Z))
+                nodeDelta[n] = default;
+
         int vc = garment.Positions.Length / 3;
         var vertDelta = new Vec3[vc];
         for (int i = 0; i < vc; i++) vertDelta[i] = nodeDelta[sets.NodeOf[i]];

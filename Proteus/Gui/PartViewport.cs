@@ -443,7 +443,15 @@ public sealed class PartViewport : IDisposable, IBrushSurface
         Array.Clear(shade);
 
         var centre = (model.Min + model.Max) * 0.5f;
-        float radius = MathF.Max((model.Max - model.Min).Length() * 0.5f, 1e-3f);
+        float radius = (model.Max - model.Min).Length() * 0.5f;
+        // A box the camera cannot frame — non-finite, or so big its size overflows — would throw out of
+        // CreatePerspectiveFieldOfView every frame.
+        if (!float.IsFinite(centre.X) || !float.IsFinite(centre.Y) || !float.IsFinite(centre.Z) || !float.IsFinite(radius))
+        {
+            centre = Vector3.Zero;
+            radius = 1f;
+        }
+        radius = MathF.Max(radius, 1e-3f);
 
         float dist = radius * 2.6f * zoom;
         var eye = centre + new Vector3(
@@ -480,8 +488,10 @@ public sealed class PartViewport : IDisposable, IBrushSurface
             var p = new Vector3(source[i * 3], source[i * 3 + 1], source[i * 3 + 2]);
             world[i] = p;
             var clip = Vector4.Transform(new Vector4(p, 1f), vp);
-            if (clip.W <= 1e-6f) continue;
+            // Written as !(> ) so a NaN w is rejected too.
+            if (!(clip.W > 1e-6f)) continue;
             var ndc = new Vector3(clip.X, clip.Y, clip.Z) / clip.W;
+            if (!float.IsFinite(ndc.X) || !float.IsFinite(ndc.Y) || !float.IsFinite(ndc.Z)) continue;
             screen[i] = new Vector3(
                 (ndc.X + pan.X + 1f) * 0.5f * bufW,
                 (1f - (ndc.Y + pan.Y)) * 0.5f * bufH,

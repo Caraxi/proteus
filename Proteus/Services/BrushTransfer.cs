@@ -202,7 +202,7 @@ internal static class BrushTransfer
                         int ta = grid.Tris[t * 3], tb = grid.Tris[t * 3 + 1], tc = grid.Tris[t * 3 + 2];
                         var q = ClosestOnTriangle(p, pos[ta], pos[tb], pos[tc], out float tu, out float tv, out float tw);
                         float d2 = Vector3.DistanceSquared(p, q);
-                        if (d2 >= best) continue;
+                        if (!(d2 < best)) continue;   // so a NaN never wins
                         best = d2; found = true;
                         a = ta; b = tb; c = tc; u = tu; v = tv; w = tw;
                     }
@@ -217,11 +217,20 @@ internal static class BrushTransfer
     /// <summary>
     /// The point of triangle abc nearest <paramref name="p"/>, with its barycentrics (u for a, v for b, w for c).
     /// Ericson, Real-Time Collision Detection, 5.1.5.
+    /// <para/>
+    /// Safe on a degenerate triangle, which body mods do ship. Unguarded, two coincident corners made the edge case
+    /// 0/0 and returned NaN — and a NaN distance wins every nearest search it enters (<c>NaN &gt;= best</c> is false),
+    /// which is how a refit onto XERX wrote 3,221 NaN vertices.
     /// </summary>
     internal static Vector3 ClosestOnTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c,
                                               out float u, out float v, out float w)
     {
         var ab = b - a; var ac = c - a; var ap = p - a;
+
+        // Exactly flat — two corners coincident, or all three in a line — has no inside, and its region tests below
+        // would take a zero-length edge for the answer. Exact, so every real triangle is answered as it always was.
+        if (Vector3.Cross(ab, ac) == Vector3.Zero) return ClosestOnFlatTriangle(p, a, b, c, out u, out v, out w);
+
         float d1 = Vector3.Dot(ab, ap), d2 = Vector3.Dot(ac, ap);
         if (d1 <= 0f && d2 <= 0f) { u = 1f; v = 0f; w = 0f; return a; }
 
@@ -229,10 +238,12 @@ internal static class BrushTransfer
         float d3 = Vector3.Dot(ab, bp), d4 = Vector3.Dot(ac, bp);
         if (d3 >= 0f && d4 <= d3) { u = 0f; v = 1f; w = 0f; return b; }
 
+        // Each edge's denominator is that edge's squared length: zero only when the edge is a point, and then any t on
+        // it is the same point.
         float vc = d1 * d4 - d3 * d2;
         if (vc <= 0f && d1 >= 0f && d3 <= 0f)
         {
-            float t = d1 / (d1 - d3);
+            float t = Ratio(d1, d1 - d3);
             u = 1f - t; v = t; w = 0f;
             return a + ab * t;
         }
@@ -244,7 +255,7 @@ internal static class BrushTransfer
         float vb = d5 * d2 - d1 * d6;
         if (vb <= 0f && d2 >= 0f && d6 <= 0f)
         {
-            float t = d2 / (d2 - d6);
+            float t = Ratio(d2, d2 - d6);
             u = 1f - t; v = 0f; w = t;
             return a + ac * t;
         }
@@ -252,15 +263,43 @@ internal static class BrushTransfer
         float va = d3 * d6 - d5 * d4;
         if (va <= 0f && d4 - d3 >= 0f && d5 - d6 >= 0f)
         {
-            float t = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+            float t = Ratio(d4 - d3, (d4 - d3) + (d5 - d6));
             u = 0f; v = 1f - t; w = t;
             return b + (c - b) * t;
         }
 
-        float denom = 1f / (va + vb + vc);
+        // The squared area: zero on a flat triangle, which has no inside. Its nearest point is on an edge.
+        float sum = va + vb + vc;
+        if (!(sum > 0f)) return ClosestOnFlatTriangle(p, a, b, c, out u, out v, out w);
+
+        float denom = 1f / sum;
         v = vb * denom;
         w = vc * denom;
         u = 1f - v - w;
         return a + ab * v + ac * w;
+    }
+
+    private static float Ratio(float num, float den) => den > 0f ? num / den : 0f;
+
+    /// <summary>The nearest of the three edges, for a triangle with no area.</summary>
+    private static Vector3 ClosestOnFlatTriangle(Vector3 p, Vector3 a, Vector3 b, Vector3 c,
+                                                 out float u, out float v, out float w)
+    {
+        float tab = OnSegment(p, a, b), tac = OnSegment(p, a, c), tbc = OnSegment(p, b, c);
+        var qab = a + (b - a) * tab;
+        var qac = a + (c - a) * tac;
+        var qbc = b + (c - b) * tbc;
+        float dab = Vector3.DistanceSquared(p, qab), dac = Vector3.DistanceSquared(p, qac), dbc = Vector3.DistanceSquared(p, qbc);
+
+        if (dab <= dac && dab <= dbc) { u = 1f - tab; v = tab; w = 0f; return qab; }
+        if (dac <= dbc) { u = 1f - tac; v = 0f; w = tac; return qac; }
+        u = 0f; v = 1f - tbc; w = tbc;
+        return qbc;
+
+        static float OnSegment(Vector3 p, Vector3 s, Vector3 e)
+        {
+            var d = e - s;
+            return Math.Clamp(Ratio(Vector3.Dot(p - s, d), d.LengthSquared()), 0f, 1f);
+        }
     }
 }
