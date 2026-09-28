@@ -1407,6 +1407,18 @@
     "message": "Most modded hair has no hat support, so a hat worn over it goes straight\nthrough. When on, Proteus waits until you wear a hat, then presses the hair\nthat the hat would cover flat against your head.\n\nThis edits the hair mod's own files, so it keeps working with Proteus turned\noff and travels with the mod if you export it. Originals are kept and the\nchange can be undone here.",
     "description": "Tooltip for the checkbox above. Keep the line breaks; the tooltip is not wrapped."
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "Replace hat support a hairstyle came with",
+    "description": "Checkbox in Settings > Hats, under the auto-fit checkbox. Off by default."
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "Some hairstyles come with hat support their author made by hand. With this off,\nProteus leaves those alone. With it on, Proteus discards the author's version and\nfits the hairstyle itself, the same as one that came with none.\n\nOff by default: an author's hand-made fit is usually the better one. The author's\nversion is kept, and is put back when you turn this off again.",
+    "description": "Tooltip for HatCompat.ReplaceAuthored.Label."
+  },
+  "HatCompat.Replacing": {
+    "message": "This hairstyle came with hat support of its own. As set above, Proteus will replace it with its own fit.",
+    "description": "Status line when the worn hairstyle has its author's hat support and the replace setting is on."
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "Hide ponytails",
     "description": "Checkbox under the one above, in Settings > Hats."

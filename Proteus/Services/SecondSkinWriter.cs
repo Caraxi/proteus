@@ -100,7 +100,7 @@ public static partial class SecondSkinWriter
     /// </summary>
     internal const float ToeBandHeight = 0f;
 
-    private const int DeclSize = 17 * 8;   // vertex declaration block, one per mesh
+    internal const int DeclSize = 17 * 8;   // vertex declaration block, one per mesh
     private const int BBoxSize = 32;       // min Vec4 + max Vec4
 
     /// <param name="CapDeclined">Set when a toe cap was asked for but no binding placed it on this body, so none was emitted.</param>

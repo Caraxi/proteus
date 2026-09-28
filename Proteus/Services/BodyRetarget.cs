@@ -602,10 +602,16 @@ internal static partial class BodyRetarget
             }
         }
 
+        // Only LOD0 was moved. The rebuild above writes LOD0 alone; an in-place refit still carries the author's other
+        // levels, fitted to the old body, and the game draws them from a distance — so they are cut. What the cut
+        // refuses keeps them, and the report says so, read off the model actually written.
+        if (ModelLodTrimmer.LodCount(model) > 1 && ModelLodTrimmer.KeepLod0(model, out _) is { } trimmed)
+            model = trimmed;
+
         var report = new Report(garment.Positions.Length / 3, solved.Snapped, solved.Transferred, solved.Missed,
                                 solved.Pushed, solved.WorstMove, solved.WorstPush,
-                                written.UnmappedSpares, written.HasOtherLods, solved.Held, solved.Laid, swap,
-                                solved.Folded);
+                                written.UnmappedSpares, ModelLodTrimmer.LodCount(model) > 1, solved.Held, solved.Laid,
+                                swap, solved.Folded);
         return new Planned(solved.Edit, model, report);
     }
 
@@ -679,6 +685,12 @@ internal static partial class BodyRetarget
         // Last, once nothing else will move: the answer is only worth having if the mesh still reads front-side out.
         // Past the push-out, so whatever unfolding gives up is judged against the skin it would be given up into.
         int folded = Unfold(sets, nodeDelta, snapped, drawn == null ? null : SignedOff(drawn));
+
+        // Never write a NaN into the file: one spreads through every smoothing pass it touches, and the model it lands in
+        // draws nothing there and threw every frame from the Parts preview. A node with no finite answer stays put.
+        for (int n = 0; n < sets.NodeCount; n++)
+            if (!float.IsFinite(nodeDelta[n].X) || !float.IsFinite(nodeDelta[n].Y) || !float.IsFinite(nodeDelta[n].Z))
+                nodeDelta[n] = default;
 
         int vc = garment.Positions.Length / 3;
         var vertDelta = new Vec3[vc];

@@ -1407,6 +1407,18 @@
     "message": "La plupart des coiffures moddées ne gèrent pas les chapeaux : un chapeau porté\npar-dessus les traverse. Quand cette option est active, Proteus attend que vous\nportiez un chapeau, puis plaque contre la tête les cheveux que ce chapeau\nrecouvrirait.\n\nCela modifie les fichiers du mod de coiffure lui-même : cela continue donc de\nfonctionner avec Proteus désactivé et suit le mod si vous l'exportez. Les\noriginaux sont conservés et la modification peut être annulée ici.",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "Remplacer la gestion des chapeaux fournie avec une coiffure",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "Certaines coiffures sont livrées avec une gestion des chapeaux faite à la main par leur auteur.\nDésactivé, Proteus les laisse telles quelles. Activé, Proteus écarte la version de\nl'auteur et ajuste lui-même la coiffure, comme une coiffure qui n'en a pas.\n\nDésactivé par défaut : l'ajustement fait main de l'auteur est généralement le meilleur. La\nversion de l'auteur est conservée et revient quand vous désactivez de nouveau cette option.",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "Cette coiffure est livrée avec sa propre gestion des chapeaux. Comme réglé ci-dessus, Proteus la remplacera par son propre ajustement.",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "Masquer les queues de cheval",
     "description": ""

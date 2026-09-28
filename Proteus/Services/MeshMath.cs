@@ -208,7 +208,27 @@ internal static partial class MeshMath
         static Vec3 Sub(Vec3 u, Vec3 v) => new(u.X - v.X, u.Y - v.Y, u.Z - v.Z);
         static Vec3 Add(Vec3 u, Vec3 v, float s) => new(u.X + v.X * s, u.Y + v.Y * s, u.Z + v.Z * s);
 
+        // Guarded as BrushTransfer.ClosestOnTriangle is: a degenerate triangle must not return NaN.
+        static float Ratio(float num, float den) => den > 0f ? num / den : 0f;
+
+        // A flat triangle has no inside: the nearest of its three edges.
+        Vec3 Flat()
+        {
+            Vec3 OnEdge(Vec3 s, Vec3 e)
+            {
+                var d = Sub(e, s);
+                return Add(s, d, Math.Clamp(Ratio(Dot(Sub(p, s), d), Dot(d, d)), 0f, 1f));
+            }
+            float D2(Vec3 q) { var d = Sub(p, q); return Dot(d, d); }
+            Vec3 qab = OnEdge(a, b), qac = OnEdge(a, c), qbc = OnEdge(b, c);
+            float dab = D2(qab), dac = D2(qac), dbc = D2(qbc);
+            return dab <= dac && dab <= dbc ? qab : dac <= dbc ? qac : qbc;
+        }
+
         Vec3 ab = Sub(b, a), ac = Sub(c, a), ap = Sub(p, a);
+        if (ab.Y * ac.Z - ab.Z * ac.Y == 0f && ab.Z * ac.X - ab.X * ac.Z == 0f && ab.X * ac.Y - ab.Y * ac.X == 0f)
+            return Flat();
+
         float d1 = Dot(ab, ap), d2 = Dot(ac, ap);
         if (d1 <= 0 && d2 <= 0) return a;
 
@@ -217,20 +237,23 @@ internal static partial class MeshMath
         if (d3 >= 0 && d4 <= d3) return b;
 
         float vc2 = d1 * d4 - d3 * d2;
-        if (vc2 <= 0 && d1 >= 0 && d3 <= 0) return Add(a, ab, d1 / (d1 - d3));
+        if (vc2 <= 0 && d1 >= 0 && d3 <= 0) return Add(a, ab, Ratio(d1, d1 - d3));
 
         Vec3 cp = Sub(p, c);
         float d5 = Dot(ab, cp), d6 = Dot(ac, cp);
         if (d6 >= 0 && d5 <= d6) return c;
 
         float vb = d5 * d2 - d1 * d6;
-        if (vb <= 0 && d2 >= 0 && d6 <= 0) return Add(a, ac, d2 / (d2 - d6));
+        if (vb <= 0 && d2 >= 0 && d6 <= 0) return Add(a, ac, Ratio(d2, d2 - d6));
 
         float va = d3 * d6 - d5 * d4;
         if (va <= 0 && d4 - d3 >= 0 && d5 - d6 >= 0)
-            return Add(b, Sub(c, b), (d4 - d3) / (d4 - d3 + (d5 - d6)));
+            return Add(b, Sub(c, b), Ratio(d4 - d3, d4 - d3 + (d5 - d6)));
 
-        float den = 1f / (va + vb + vc2);
+        float sum = va + vb + vc2;
+        if (!(sum > 0f)) return Flat();
+
+        float den = 1f / sum;
         return Add(Add(a, ab, vb * den), ac, vc2 * den);
     }
 

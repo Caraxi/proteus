@@ -199,8 +199,8 @@ internal static class MeshVolumeService
             wind = report;
         }
 
-        ushort lodCount = BitConverter.ToUInt16(mdl, src.Mh + 22);
-        return new Written(o, unmapped, lodCount > 1, wind);
+        // One byte: the next is Flags1, and reading both as a u16 called every model with a flag set multi-level.
+        return new Written(o, unmapped, mdl[src.Mh + 22] > 1, wind);
     }
 
     /// <summary>

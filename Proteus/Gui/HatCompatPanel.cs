@@ -37,6 +37,20 @@ internal sealed class HatCompatPanel(HatCompatWatcher watcher, Configuration con
         ImGui.SameLine();
         ImGuiComponents.HelpMarker(s.AutoFitTip);
 
+        var replace = config.ReplaceAuthoredHatCompat;
+        if (ImGui.Checkbox(s.ReplaceAuthored, ref replace))
+        {
+            config.ReplaceAuthoredHatCompat = replace;
+            config.Save();
+            // On acts on the hairstyle being worn now, fitting it over the author's. Off gives every hairstyle this
+            // replaced, in every mod, the author's version back — most of them are not the one being worn.
+            if (replace) watcher.Refresh(mayApply: true, force: true);
+            else watcher.RestoreReplaced();
+        }
+        if (ImGui.IsItemHovered()) ImGui.SetTooltip(s.ReplaceAuthoredTip);
+        ImGui.SameLine();
+        ImGuiComponents.HelpMarker(s.ReplaceAuthoredTip);
+
         ImGui.Spacing();
         ImGui.Separator();
         ImGui.Spacing();
@@ -118,6 +132,11 @@ internal sealed class HatCompatPanel(HatCompatWatcher watcher, Configuration con
         {
             ImGui.TextWrapped(s.InheritedTag);
             if (ImGui.IsItemHovered()) ImGui.SetTooltip(s.InheritedTagTip);
+            ImGui.Spacing();
+        }
+        if (proposal.Replaced)
+        {
+            ImGui.TextWrapped(s.Replacing);
             ImGui.Spacing();
         }
 

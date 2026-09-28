@@ -1407,6 +1407,18 @@
     "message": "대부분의 모드 헤어는 모자를 지원하지 않아서, 위에 모자를 쓰면 그대로 뚫고\n나옵니다. 켜면 Proteus가 모자를 쓸 때까지 기다렸다가, 그 모자가 가릴\n머리카락을 두상에 밀착시킵니다.\n\n이 작업은 헤어 모드 자체의 파일을 편집하므로 Proteus를 꺼도 계속 작동하고,\n모드를 내보내면 함께 따라갑니다. 원본은 보관되며 변경은 여기서 되돌릴 수\n있습니다.",
     "description": ""
   },
+  "HatCompat.ReplaceAuthored.Label": {
+    "message": "헤어스타일에 포함된 모자 지원을 교체",
+    "description": ""
+  },
+  "HatCompat.ReplaceAuthored.Tip": {
+    "message": "일부 헤어스타일에는 제작자가 직접 만든 모자 지원이 들어 있습니다. 꺼져 있으면\nProteus는 그대로 둡니다. 켜면 제작자의 버전을 버리고,\n모자 지원이 없는 헤어스타일과 똑같이 Proteus가 직접 맞춥니다.\n\n기본값은 꺼짐입니다. 제작자가 손으로 맞춘 쪽이 대개 더 낫습니다.\n제작자의 버전은 보관되며, 다시 끄면 되돌아옵니다.",
+    "description": ""
+  },
+  "HatCompat.Replacing": {
+    "message": "이 헤어스타일에는 자체 모자 지원이 들어 있습니다. 위 설정에 따라 Proteus가 자체 맞춤으로 교체합니다.",
+    "description": ""
+  },
   "HatCompat.HidePonytails.Label": {
     "message": "포니테일 숨기기",
     "description": ""

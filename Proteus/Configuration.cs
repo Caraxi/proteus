@@ -207,6 +207,14 @@ public class Configuration : IPluginConfiguration
     public bool AutoHatCompat { get; set; } = true;
 
     /// <summary>
+    /// Fit a hairstyle whose author already gave it hat support too, discarding theirs (<c>shp_hib</c> and
+    /// <c>atr_kam</c>) for Proteus's own. Off by default: an author's hand-made press is usually the better one.
+    /// Switching it off in the Hats section puts the author's version back, from the backup, on every hairstyle it
+    /// replaced in every mod (<c>HatCompatWatcher.RestoreReplaced</c>).
+    /// </summary>
+    public bool ReplaceAuthoredHatCompat { get; set; }
+
+    /// <summary>
     /// Render asymmetric FACE art by rewriting the face model into the doubled sheet layout. On by default: a shell
     /// cannot carry a face (it has no shape keys, so it cannot blink). Off falls back to the fold.
     /// </summary>

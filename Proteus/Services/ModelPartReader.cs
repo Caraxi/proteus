@@ -190,6 +190,8 @@ public static partial class ModelPartReader
         void Add(int v)
         {
             var p = new Vector3(pos[v * 3], pos[v * 3 + 1], pos[v * 3 + 2]);
+            // A NaN or infinite vertex (some mods ship them) would poison the whole box, and the viewport's camera with it.
+            if (!float.IsFinite(p.X) || !float.IsFinite(p.Y) || !float.IsFinite(p.Z)) return;
             min = Vector3.Min(min, p);
             max = Vector3.Max(max, p);
         }

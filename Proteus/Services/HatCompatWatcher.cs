@@ -314,7 +314,8 @@ public sealed class HatCompatWatcher : IDisposable
 
         // The race code from the hair's game path picks which baked hat profile the cut measures against.
         var raceCode = ContentSlot.Parse(target.GamePath)?.RaceCode;
-        var proposal = HatCompatService.Inspect(target.Model, target.Rel, target.Head, raceCode);
+        var proposal = HatCompatService.Inspect(target.Model, target.Rel, target.Head, raceCode,
+                                                config.ReplaceAuthoredHatCompat);
         if (proposal == null)
         {
             current = new View(target, Message: Strings.HatCompat.Unreadable, Failed: true, Busy: true);
@@ -387,6 +388,9 @@ public sealed class HatCompatWatcher : IDisposable
         if (proposal.TookOver)
             log.Information("hat compat: {0} arrived with its own hat support that hides hair no hat "
                           + "covers — replacing its atr_kam mask and leaving its shape alone", target.Rel);
+        if (proposal.Replaced)
+            log.Information("hat compat: {0} arrived with its own hat support — replacing its shp_hib and "
+                          + "atr_kam with Proteus's fit, as asked", target.Rel);
 
         log.Information("hat compat: fitting {0} — pressing {1} vertices, cutting {2} piece(s){3}",
                         target.Rel, proposal.Solve.Considered, proposal.Solve.Cut.Count,
@@ -423,7 +427,7 @@ public sealed class HatCompatWatcher : IDisposable
                 var bytes = System.IO.File.ReadAllBytes(System.IO.Path.Combine(
                     target.ModRoot, rel.Replace('/', System.IO.Path.DirectorySeparatorChar)));
                 if (HatCompatService.Inspect(bytes, rel, target.Head,
-                        ContentSlot.Parse(target.GamePath)?.RaceCode)
+                        ContentSlot.Parse(target.GamePath)?.RaceCode, config.ReplaceAuthoredHatCompat)
                     is not { AlreadyCompatible: false } sib)
                     continue;
                 var sibOutcome = HatCompatService.Apply(target.ModRoot, bytes, sib);
@@ -536,6 +540,53 @@ public sealed class HatCompatWatcher : IDisposable
 
     /// <summary>Put this hairstyle back the way its author shipped it.</summary>
     public void Revert() => RunRevert(RevertFiles);
+
+    /// <summary>
+    /// Give every hairstyle whose own hat support Proteus replaced its author's version back, in every mod — for
+    /// switching <c>ReplaceAuthoredHatCompat</c> off. Not tied to what is worn, and runs whether or not auto-fit is
+    /// on, since it only restores. Waits out an examination already running rather than being dropped by it.
+    /// </summary>
+    public void RestoreReplaced()
+    {
+        var modsRoot = penumbra.GetModDirectory();
+        if (disposed || string.IsNullOrEmpty(modsRoot)) return;
+        Task.Run(async () =>
+        {
+            while (Interlocked.CompareExchange(ref busy, 1, 0) != 0)
+            {
+                if (disposed) return;
+                await Task.Delay(100);
+            }
+            current = current with { Busy = true };
+            try
+            {
+                var (restored, mods, failed) = HatCompatService.RestoreReplaced(modsRoot);
+                foreach (var line in failed)
+                    log.Warning("hat compat: could not put an author's hat support back — {0}", line);
+                if (restored == 0) return;
+
+                log.Information("hat compat: put the author's own hat support back on {0} file(s) in {1} mod(s)",
+                                restored, mods.Count);
+                // Penumbra re-reads each mod before the redraw: the game caches a loaded model per resolved path.
+                foreach (var mod in mods)
+                    penumbra.ReloadModDirectory(System.IO.Path.GetFileName(mod));
+                compositor.RedrawForChangedModel();
+
+                // What is worn may be one of them; look again, without fitting anything.
+                lastKey = null;
+                Examine(mayApply: false);
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex, "hat compat: putting authors' hat support back failed");
+            }
+            finally
+            {
+                Interlocked.Exchange(ref busy, 0);
+                current = current with { Busy = false };
+            }
+        });
+    }
 
     /// <summary>
     /// Put every hairstyle in this mod back the way its author shipped it — including the race variants

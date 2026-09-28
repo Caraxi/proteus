@@ -163,6 +163,9 @@ public partial class CompositorService
             compositor.textureLoader.ResetStats();
             compositor.uvRemap.RemapStats.Reset();
             compositor.ResetBlendStats();
+            compositor.penumbra.ReloadStats.Reset();
+            compositor.penumbra.WriteStats.Reset();
+            compositor.penumbra.MainThreadWaitStats.Reset();
 
             compositor.EnsureManagedModExists();
 

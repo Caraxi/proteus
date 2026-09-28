@@ -183,7 +183,7 @@ internal sealed class BodySurface
                     var q = BrushTransfer.ClosestOnTriangle(p, pos[ta], pos[tb], pos[tc],
                                                             out float tu, out float tv, out float tw);
                     float d2 = Vector3.DistanceSquared(p, q);
-                    if (d2 >= best) continue;
+                    if (!(d2 < best)) continue;   // so a NaN never wins
                     best = d2;
                     found = true;
                     ba = ta; bb = tb; bc = tc;
