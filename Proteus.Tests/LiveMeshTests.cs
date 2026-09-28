@@ -168,15 +168,10 @@ public class LiveMeshTests(ITestOutputHelper o)
     /// The game's own racial deformer file parses, and bends a Midlander model onto a Roegadyn: a non-empty
     /// chain whose pelvis matrix is not the identity. Skipped without a local game install.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void TheGamesRacialDeformerParsesAndChains()
     {
-        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
-                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
-        var sqpack = Path.Combine(game, "game", "sqpack");
-        if (!Directory.Exists(sqpack)) { o.WriteLine($"no game data at {sqpack}"); return; }
-
-        var data = new Lumina.GameData(sqpack);
+        var data = new Lumina.GameData(LocalData.Path(LocalData.GameData));
         var file = data.GetFile("chara/xls/boneDeformer/human.pbd");
         Assert.NotNull(file);
         var pbd = new PbdFile(file!.Data);

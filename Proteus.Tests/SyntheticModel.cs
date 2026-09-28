@@ -72,6 +72,22 @@ internal static class SyntheticModel
     /// <summary>One LOD0 mesh, drawn with <paramref name="Material"/>.</summary>
     internal sealed record Mesh(string Material, params Sub[] Submeshes);
 
+    /// <summary>
+    /// A content pack's piece, shaped the way packs ship one: a stock model with its vanilla mesh emptied — it still
+    /// DECLARES the vanilla smallclothes material, and draws nothing with it — and the pack's own mesh added, bound
+    /// to the pack's own material. The shape the Neolithe Piercings pack used to have, which the importer tests were
+    /// written against; built here so they run without the pack.
+    /// </summary>
+    internal static byte[] PackPiece() => Build([],
+        new Mesh(PackPieceVanillaMaterial),
+        new Mesh(PackPieceMaterial, new Sub(0, TrianglesPerIsland: 4)));
+
+    /// <summary>The emptied vanilla mesh's material in <see cref="PackPiece"/>.</summary>
+    internal const string PackPieceVanillaMaterial = "/mt_c0201e0000_top_a.mtrl";
+
+    /// <summary>The pack's own material in <see cref="PackPiece"/>.</summary>
+    internal const string PackPieceMaterial = "/mt_c0201b0001_neolithe_piercings.mtrl";
+
     /// <summary>Dawntrail .mdl. Bone tables are a header array plus one shared pool of indices.</summary>
     internal const uint V6 = 0x01000006;
 

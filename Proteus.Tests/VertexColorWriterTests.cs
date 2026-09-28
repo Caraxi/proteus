@@ -21,12 +21,10 @@ public class VertexColorWriterTests(ITestOutputHelper o)
             foreach (var f in Directory.GetFiles(dir, "*.mdl"))
                 yield return (Path.GetFileName(f), File.ReadAllBytes(f));
 
-        // Vanilla gear too, when a game install is present: three LODs, so the offsets past LOD0 get exercised.
-        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
-                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
-        var sqpack = Path.Combine(game, "game", "sqpack");
-        if (!Directory.Exists(sqpack)) { o.WriteLine($"no game data at {sqpack}"); yield break; }
-        var data = new Lumina.GameData(sqpack);
+        // Vanilla gear too, when a game install is present (see LocalData): three LODs, so the offsets past LOD0 get
+        // exercised. The plugin's own meshes above run everywhere.
+        if (LocalData.Missing([LocalData.GameData]) is { } why) { o.WriteLine(why); yield break; }
+        var data = new Lumina.GameData(LocalData.Path(LocalData.GameData));
         foreach (var path in new[]
                  {
                      "chara/equipment/e0000/model/c0201e0000_top.mdl",

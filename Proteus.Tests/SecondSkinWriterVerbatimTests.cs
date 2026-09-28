@@ -12,23 +12,26 @@ namespace Proteus.Tests;
 /// Structural validation for the verbatim second-skin writer: builds a shell from a REAL body model
 /// and re-parses the output to confirm each mesh's declared stream strides match its vertex declaration
 /// (position/normal/uv/blend all fit), so the model is at least self-consistent before an in-game test.
-/// Skipped automatically when the local Neolithe model isn't present.
+/// The real bodies are other authors' mods, found through <see cref="LocalData"/>; without them those tests skip.
 /// </summary>
 public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper o)
 {
-    internal const string NeoTop =
-        @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT CHEST - SmallClothes\0201e0000_top.mdl";
+    // Whole body mods, as LocalData needs: a test that needs one names it in its attribute.
+    internal const string NeolitheNeed = LocalData.Mods + ":Neolithe [ALL IN ONE]";
+    internal const string BiboNeed = LocalData.Mods + ":Bibo+";
+    internal const string RueNeed = LocalData.Mods + ":hs-Rue+-2.2.7-y0f";
+    internal const string HostRingNeed =
+        LocalData.Mods + ":classic gold/classic gold accessories/rings/chara/accessory/a0001/model/c0201a0001_rir.mdl";
+
+    internal static readonly string NeoTop = LocalData.Path(NeolitheNeed + "/DEFAULT CHEST - SmallClothes/0201e0000_top.mdl");
     /// <summary>The other parts of the SAME body, so the redundancy pass can be measured against a layout a
     /// character actually wears rather than two tops stacked on each other.</summary>
-    private const string NeoLegs =
-        @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT LEGS - SmallClothes\SFW Medium.mdl";
-    private const string NeoHands =
-        @"E:\Penumbradt\Neolithe [ALL IN ONE]\HANDS\Hands short.mdl";
+    private static readonly string NeoLegs = LocalData.Path(NeolitheNeed + "/DEFAULT LEGS - SmallClothes/SFW Medium.mdl");
+    private static readonly string NeoHands = LocalData.Path(NeolitheNeed + "/HANDS/Hands short.mdl");
 
-    internal const string BiboTop =
-        @"E:\Penumbradt\Bibo+\Breasts - Small Clothes\Nude - Large\chara\equipment\e0000\model\c0201e0000_top.mdl";
-    internal const string HostRing =
-        @"E:\Penumbradt\classic gold\classic gold accessories\rings\chara\accessory\a0001\model\c0201a0001_rir.mdl";
+    internal static readonly string BiboTop =
+        LocalData.Path(BiboNeed + "/Breasts - Small Clothes/Nude - Large/chara/equipment/e0000/model/c0201e0000_top.mdl");
+    internal static readonly string HostRing = LocalData.Path(HostRingNeed);
 
     /// <summary>
     /// A whole body, as the four parts a character wears at once. The redundancy pass is only answerable
@@ -39,32 +42,30 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     [
         ("Neolithe",
         [
-            @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT CHEST - SmallClothes\0201e0000_top.mdl",
-            @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT LEGS - SmallClothes\SFW Medium.mdl",
-            @"E:\Penumbradt\Neolithe [ALL IN ONE]\HANDS\Hands short.mdl",
-            @"E:\Penumbradt\Neolithe [ALL IN ONE]\FEET\Feet.mdl",
+            NeoTop,
+            NeoLegs,
+            NeoHands,
+            LocalData.Path(NeolitheNeed + "/FEET/Feet.mdl"),
         ]),
         ("Bibo+",
         [
-            @"E:\Penumbradt\Bibo+\Breasts - Small Clothes\Nude - Large\chara\equipment\e0000\model\c0201e0000_top.mdl",
-            @"E:\Penumbradt\Bibo+\Bottoms - Small Clothes\Type A - Medium\chara\equipment\e0000\model\c0201e0000_dwn.mdl",
-            @"E:\Penumbradt\Bibo+\Hands\Small Clothes\chara\equipment\e0000\model\c0201e0000_glv.mdl",
-            @"E:\Penumbradt\Bibo+\Feet\Small Clothes\chara\equipment\e0000\model\c0201e0000_sho.mdl",
+            BiboTop,
+            LocalData.Path(BiboNeed + "/Bottoms - Small Clothes/Type A - Medium/chara/equipment/e0000/model/c0201e0000_dwn.mdl"),
+            LocalData.Path(BiboNeed + "/Hands/Small Clothes/chara/equipment/e0000/model/c0201e0000_glv.mdl"),
+            LocalData.Path(BiboNeed + "/Feet/Small Clothes/chara/equipment/e0000/model/c0201e0000_sho.mdl"),
         ]),
         ("Rue+",
         [
-            @"E:\Penumbradt\hs-Rue+-2.2.7-y0f\files\chest - smallclothes\medium\chara\equipment\e0000\model\c0201e0000_top.mdl",
-            @"E:\Penumbradt\hs-Rue+-2.2.7-y0f\files\legs - smallclothes\yanilla - a\chara\equipment\e0000\model\c0201e0000_dwn.mdl",
-            @"E:\Penumbradt\hs-Rue+-2.2.7-y0f\files\Hands - Smallclothes\Short Nails\chara\equipment\e0000\model\c0201e0000_glv.mdl",
-            @"E:\Penumbradt\hs-Rue+-2.2.7-y0f\files\Feet - Smallclothes\Rue Feet\chara\equipment\e0000\model\c0201e0000_sho.mdl",
+            LocalData.Path(RueNeed + "/files/chest - smallclothes/medium/chara/equipment/e0000/model/c0201e0000_top.mdl"),
+            LocalData.Path(RueNeed + "/files/legs - smallclothes/yanilla - a/chara/equipment/e0000/model/c0201e0000_dwn.mdl"),
+            LocalData.Path(RueNeed + "/files/Hands - Smallclothes/Short Nails/chara/equipment/e0000/model/c0201e0000_glv.mdl"),
+            LocalData.Path(RueNeed + "/files/Feet - Smallclothes/Rue Feet/chara/equipment/e0000/model/c0201e0000_sho.mdl"),
         ]),
     ];
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed)]
     public void Verbatim_output_is_structurally_consistent()
     {
-        if (!File.Exists(NeoTop)) return;   // model not available on this machine — nothing to check
-
         var body = File.ReadAllBytes(NeoTop);
         var layers = new[]
         {
@@ -80,12 +81,11 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(outBytes);
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed, BiboNeed)]
     public void Merged_heterogeneous_bodies_stay_consistent()
     {
         // Neolithe (ushort4 blend, stride 28) merged with Bibo (ubyte4 blend, stride 20): each mesh must
         // keep its OWN declaration/stride in the output. Validates the merge across mixed vertex formats.
-        if (!File.Exists(NeoTop) || !File.Exists(BiboTop)) return;
 
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
         var outBytes = SecondSkinWriter.Build(
@@ -95,12 +95,11 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(outBytes);
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed, HostRingNeed)]
     public void Appended_host_ring_keeps_its_materials_and_meshes()
     {
         // Append the shell INTO an equipped ring: the ring's own materials/meshes must survive at the FRONT
         // (so the accessory still renders) and the shell's material is added after them.
-        if (!File.Exists(NeoTop) || !File.Exists(HostRing)) return;
 
         var body = File.ReadAllBytes(NeoTop);
         var ring = File.ReadAllBytes(HostRing);
@@ -129,9 +128,8 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     }
 
     // A .pmp that ships geometry, used to exercise the content-append path against a real pack rather than
-    // a synthesised model. Absent on other machines, in which case these tests no-op like the ones above.
-    private const string ContentPack = @"E:\ModPacks\Neolithe Piercings for Proteus.pmp";
-    private const string ContentEntry = "top/belly button heart/chara/equipment/e0000/model/c0201e0000_top.mdl";
+    // a synthesised model (LocalData.PiercingsPack).
+    private const string ContentEntry = "top/belly button heart/chara/accessory/a0112/model/c0201a0112_wrs.mdl";
 
     /// <summary>
     /// The material the pack's own mesh is bound to, read OUT of the model rather than written down here:
@@ -141,17 +139,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     private static string ContentMaterialOf(byte[] model)
         => ContentPieceResolver.UsedMaterialNames(model, SecondSkinWriter.MaterialNames(model))[0];
 
-    private static byte[]? ReadPackEntry(string entry)
-    {
-        if (!File.Exists(ContentPack)) return null;
-        using var zip = ZipFile.OpenRead(ContentPack);
-        var e = zip.GetEntry(entry);
-        if (e == null) return null;
-        using var st = e.Open();
-        using var ms = new MemoryStream();
-        st.CopyTo(ms);
-        return ms.ToArray();
-    }
+    private static byte[] ReadPackEntry(string entry) => LocalData.PackEntry(LocalData.PiercingsPack, entry);
 
     private static ContentGeometry Geometry(byte[] model, string materialLeaf, bool mirrorUv1 = false)
         => new(model, SecondSkinWriter.KeepByLeaf(
@@ -522,11 +510,10 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         return masks;
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_glowing_content_mesh_gets_uv1_mirrored_from_its_own_uv0()
     {
         var content = ReadPackEntry(ContentEntry);
-        if (content == null) return;
 
         var mat = ContentMaterialOf(content);
         SecondSkinLayer[] Layers(bool mirror) =>
@@ -655,11 +642,10 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
             ? ((float)BitConverter.ToHalf(m, at), (float)BitConverter.ToHalf(m, at + 2))
             : (BitConverter.ToSingle(m, at), BitConverter.ToSingle(m, at + 4));
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack, HostRingNeed)]
     public void Content_layer_appends_the_packs_own_geometry_into_the_host()
     {
         var content = ReadPackEntry(ContentEntry);
-        if (content == null || !File.Exists(HostRing)) return;
 
         var ring = File.ReadAllBytes(HostRing);
         var ringMats = SecondSkinWriter.MaterialNames(ring);
@@ -693,11 +679,10 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(outBytes);
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Content_only_build_needs_no_shell_sources()
     {
         var content = ReadPackEntry(ContentEntry);
-        if (content == null) return;
 
         var layers = new[]
         {
@@ -719,15 +704,14 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(outBytes);
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void One_layer_can_carry_several_meshes_against_a_single_material()
     {
         // The point of the whole thing: a material is what costs a slot on the host, so two pieces of a pack
         // that want the same material publish it ONCE and both draw with it. A pack of five piercings on one
         // material would otherwise spend five of the host's ten slots.
         var top = ReadPackEntry(ContentEntry);
-        var bottom = ReadPackEntry("bottom/hip dermals/chara/equipment/e0000/model/c0201e0000_dwn.mdl");
-        if (top == null || bottom == null) return;
+        var bottom = ReadPackEntry("bottom/hip dermals/chara/accessory/a0112/model/c0201a0112_wrs.mdl");
 
         SecondSkinWriter.Build(Array.Empty<SecondSkinWriter.SourceSpec>(),
             [new SecondSkinLayer { MaterialName = "/m.mtrl", Geometry = [Geometry(top, ContentMaterialOf(top))] }],
@@ -770,7 +754,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
             Array.Empty<SecondSkinWriter.SourceSpec>(), layers, null, out _));
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed)]
     public void A_lone_part_keeps_its_connector_rings_on_a_real_body()
     {
         // Neolithe's top carries joint-connector submeshes (atr_nek/hij/ude/…) beside its complete main
@@ -780,7 +764,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         // ring is redundant because a NEIGHBOURING PART draws the same band; with no neighbour there is no
         // such band, and dropping one anyway leaves the wearer a bare neck. The old pass did exactly that
         // whenever the caller supplied no part layout, and this build has no way left to ask for it.
-        if (!File.Exists(NeoTop)) return;
 
         var body = File.ReadAllBytes(NeoTop);
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
@@ -794,7 +777,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(keptBytes);
     }
 
-    [Theory]
+    [LocalDataTheory(NeolitheNeed)]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
@@ -807,7 +790,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         // hands theirs and the feet their ankle ring — every one a band nothing else draws. A lone part has
         // no neighbour to lap, and Neolithe has no inner lap either, so nothing at all may be cut.
         var path = Array.Find(Bodies, b => b.Body == "Neolithe").Parts[part];
-        if (!File.Exists(path)) return;
 
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
         var lines = new List<string>();
@@ -817,14 +799,13 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Equal(0, stats.TrimmedTris);
     }
 
-    [Fact]
+    [LocalDataFact(BiboNeed)]
     public void A_lone_part_still_loses_a_true_lap()
     {
         // The other side of the rule above: Bibo+'s thigh runs six centimetres down inside its knee, every
         // vertex of it behind a face of the knee. Worn alone the legs must still lose it, or the fix for the
         // rings has simply switched the lap rule off.
         var path = Array.Find(Bodies, b => b.Body == "Bibo+").Parts[1];
-        if (!File.Exists(path)) return;
 
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
         SecondSkinWriter.Build(new[] { File.ReadAllBytes(path) }, layers, null, true, out var stats);
@@ -832,7 +813,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.True(stats.TrimmedTris > 0, "the thigh lap inside the knee was not cut");
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed)]
     public void A_real_layout_loses_the_wrist_ring_and_keeps_the_neck()
     {
         // The top with the legs and hands of the SAME body beside it — the arrangement a character
@@ -843,8 +824,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         // because nothing else reaches that high, and the 840-triangle shoulder region (y 1.001..1.115)
         // survives because no other part encloses it. Both would be lost to a comparison that asked only
         // about height, and a bare neck is the regression this rule has produced before.
-        if (!File.Exists(NeoTop) || !File.Exists(NeoLegs) || !File.Exists(NeoHands)) return;
-
         var neo = File.ReadAllBytes(NeoTop);
         var legs = File.ReadAllBytes(NeoLegs);
         var hands = File.ReadAllBytes(NeoHands);
@@ -1048,7 +1027,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
 
     // ── SourceSpec: the per-source refactor must change nothing ────────────────
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed, BiboNeed)]
     public void SourceSpec_api_matches_the_legacy_api_byte_for_byte()
     {
         // The whole safety argument for collapsing the parallel arrays (enabled shapes, uv converters, one
@@ -1060,7 +1039,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         // shape-only shortcut the SourceSpec path never took, so "identical" held over two rules that were
         // not the same rule. The writer derives the layout from the sources now, so both really do run the
         // same pass on the same evidence.
-        if (!File.Exists(NeoTop) || !File.Exists(BiboTop)) return;
 
         var neo = File.ReadAllBytes(NeoTop);
         var bibo = File.ReadAllBytes(BiboTop);
@@ -1081,14 +1059,13 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.Equal(legacyStats.TrianglesOut, specStats.TrianglesOut);
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed, BiboNeed)]
     public void DropConnectors_is_per_source()
     {
         // The pass is per-source because its seam-ring rule reads a part as one of SEVERAL — it drops a ring
         // because a neighbouring part draws the same band, which means nothing for a lone face, tail or ear.
         // Proving the flag is honoured per source is what lets one of those sit beside a body source without
         // being eaten by it.
-        if (!File.Exists(NeoTop) || !File.Exists(BiboTop)) return;
 
         var neo = File.ReadAllBytes(NeoTop);
         var bibo = File.ReadAllBytes(BiboTop);
@@ -1124,13 +1101,12 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.True(onlyNeo.TrianglesOut < neither.TrianglesOut, "the trimmed source kept every triangle");
     }
 
-    [Fact]
+    [LocalDataFact(NeolitheNeed)]
     public void KeepByLeaf_selects_only_the_named_material()
     {
         // How every non-body surface picks its geometry: name the material the overlay targets and get
         // exactly the meshes bound to it. Here it is pointed at a name no mesh carries, which must select
         // nothing at all — and a shell with no geometry is an error, not a silently empty model.
-        if (!File.Exists(NeoTop)) return;
 
         var neo = File.ReadAllBytes(NeoTop);
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
@@ -1152,27 +1128,22 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Validate(body);
     }
 
-    private const string RueHands =
-        @"E:\Penumbradt\hs-Rue+-2.2.7-y0f\files\Hands - Smallclothes\Short Nails\chara\equipment\e0000\model\c0201e0000_glv.mdl";
-
-    private const string BiboHands =
-        @"E:\Penumbradt\Bibo+\Hands\Small Clothes\chara\equipment\e0000\model\c0201e0000_glv.mdl";
+    /// <summary>A body's hands model, by its name in <see cref="Bodies"/>.</summary>
+    private static byte[] Hands(string body) => File.ReadAllBytes(Array.Find(Bodies, b => b.Body == body).Parts[2]);
 
     /// <summary>
     /// A glove has to cover the nails. Every one of these hands lays a small UV island of skin under each nail,
     /// apart from the finger in the atlas, and glove art paints the fingers only — modelled here by painting every
     /// island but the small ones. Without CoverNails the trim opens a hole over each nail; with it the nail beds
-    /// take the fingertip's UV and stay. Set PROTEUS_NAIL_OBJ to a folder to get the shells as .obj files.
+    /// take the fingertip's UV and stay.
     /// </summary>
-    [Theory]
-    [InlineData(NeoHands)]
-    [InlineData(RueHands)]
-    [InlineData(BiboHands)]
-    public void A_glove_covers_the_nails(string path)
+    [LocalDataTheory(NeolitheNeed, RueNeed, BiboNeed)]
+    [InlineData("Neolithe")]
+    [InlineData("Rue+")]
+    [InlineData("Bibo+")]
+    public void A_glove_covers_the_nails(string body)
     {
-        if (!File.Exists(path)) return;
-
-        var hand = File.ReadAllBytes(path);
+        var hand = Hands(body);
         const int size = 1024;
         var layers = new[]
         {
@@ -1184,7 +1155,7 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         };
         var log = new List<string>();
 
-        var bareShell = SecondSkinWriter.Build(new[] { new SecondSkinWriter.SourceSpec(hand) }, layers, null, out var bare);
+        SecondSkinWriter.Build(new[] { new SecondSkinWriter.SourceSpec(hand) }, layers, null, out var bare);
         var nailed = SecondSkinWriter.Build(new[] { new SecondSkinWriter.SourceSpec(hand, CoverNails: true) },
                                             layers, null, out var stats, log.Add);
         foreach (var l in log.Where(l => l.StartsWith("nail beds", StringComparison.Ordinal))) o.WriteLine(l);
@@ -1213,14 +1184,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         SecondSkinWriter.Build(new[] { new SecondSkinWriter.SourceSpec(hand, CoverNails: true) },
                                none, null, out _, noneLog.Add);
         Assert.Equal(0, Rescued(noneLog));
-
-        if (Environment.GetEnvironmentVariable("PROTEUS_NAIL_OBJ") is { Length: > 0 } dir)
-        {
-            var stem = Path.Combine(dir, Path.GetFileNameWithoutExtension(path).Replace(' ', '_'));
-            ToeCapDiagTests.WriteObj(bareShell, stem + "_glove_before.obj");
-            ToeCapDiagTests.WriteObj(nailed, stem + "_glove_after.obj");
-            o.WriteLine($"wrote {stem}_glove_before.obj / _after.obj");
-        }
     }
 
     /// <summary>
@@ -1228,11 +1191,10 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     /// whole layout. Both read them as copies of the fingertips they lie on — every nail vertex is within the 5 mm
     /// coincidence distance — and dropped them, so no glove could ever cover them.
     /// </summary>
-    [Fact]
+    [LocalDataFact(NeolitheNeed)]
     public void Body_material_nails_survive_the_redundancy_pass()
     {
         var parts = Bodies.First(b => b.Body == "Neolithe").Parts;
-        if (!parts.All(File.Exists)) return;
         var layers = new[] { new SecondSkinLayer { MaterialName = "/mt_c0201a0053_rir_a.mtrl", Coverage = null } };
         var hidden = new HashSet<string> { "atr_gv_b" };   // the game's pick: body-material nails, not the nail mesh
 
@@ -1256,181 +1218,6 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
         Assert.True(DropsNails(beforeLog), "the unflagged build no longer drops the nails — this test measures nothing");
         Assert.False(DropsNails(afterLog), "the hands' nails were dropped as redundant");
         Assert.True(after - before >= 1288, $"only {after - before} triangles came back; the nail submesh has 1288");
-    }
-
-    /// <summary>
-    /// The hands as the GAME built them, from %TEMP%\proteus-shell-dump (see SecondSkinService.DumpShellInputs):
-    /// per layer, how many of the nail mesh's vertices have shell over them, and the coverage the shell samples
-    /// there. Writes each layer's hand shell and the nails to the Desktop. Does nothing without a dump.
-    /// </summary>
-    [Fact]
-    public void Nails_from_game_dump()
-    {
-        var dir = Path.Combine(Path.GetTempPath(), "proteus-shell-dump");
-        if (!Directory.Exists(dir)) return;
-        var desk = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "OneDrive", "Desktop", "nails");
-        Directory.CreateDirectory(desk);
-
-        foreach (var info in Directory.GetFiles(dir, "host*_inputs.txt"))
-        {
-            var pre = info[..^"inputs.txt".Length];
-            var text = File.ReadAllLines(info);
-            // A dump from a build that predates the flag names no hands, so every source gets a turn.
-            bool anyFlagged = text.Any(l => l.Contains("coverNails=True", StringComparison.Ordinal));
-            for (int s = 0; ; s++)
-            {
-                var line = Array.Find(text, l => l.StartsWith($"source[{s}] ", StringComparison.Ordinal));
-                if (line == null) break;
-                if (anyFlagged && !line.Contains("coverNails=True", StringComparison.Ordinal)) continue;
-                o.WriteLine($"{Path.GetFileName(info)}: {line}");
-                var hand = File.ReadAllBytes($"{pre}body{s}.mdl");
-                SecondSkinWriter.TryReadLod0Geometry(hand, out var np, out _, out var nt, out _, out _,
-                                                     skinOnly: false, nonSkin: true);
-                // Nails are a handful of small patches. Without the flag to go on, anything bigger is some other
-                // part — a face carries eyes, lashes and brows here — and measuring it says nothing about nails.
-                if (!anyFlagged && np.Length / 3 > 2000) continue;
-                o.WriteLine($"  nail mesh: {np.Length / 3} verts, {nt.Length / 3} tris; materials: "
-                          + string.Join(", ", SecondSkinWriter.MaterialNames(hand)));
-                var hidden = System.Text.RegularExpressions.Regex.Match(line, @"hiddenAttrs=(\S*)").Groups[1].Value;
-                var shapes = System.Text.RegularExpressions.Regex.Match(line, @"shapes=(\S*)").Groups[1].Value;
-
-                for (int i = 0; ; i++)
-                {
-                    var ll = Array.Find(text, l => l.StartsWith($"layer[{i}] ", StringComparison.Ordinal));
-                    if (ll == null) break;
-                    var cvm = System.Text.RegularExpressions.Regex.Match(ll, @"coverage=(\d+)x(\d+)");
-                    var covPath = $"{pre}layer{i}_coverage.raw";
-                    var layer = new SecondSkinLayer
-                    {
-                        MaterialName = "/mt_c0201a0053_rir_a.mtrl",
-                        Coverage = cvm.Success && File.Exists(covPath) ? File.ReadAllBytes(covPath) : null,
-                        CoverageWidth = cvm.Success ? int.Parse(cvm.Groups[1].Value) : 0,
-                        CoverageHeight = cvm.Success ? int.Parse(cvm.Groups[2].Value) : 0,
-                    };
-                    var log = new List<string>();
-                    byte[] shell;
-                    try
-                    {
-                        // EVERY source, with the flags the game gave it: the redundancy pass decides per LAYOUT.
-                        var specs = new List<SecondSkinWriter.SourceSpec>();
-                        for (int q = 0; ; q++)
-                        {
-                            var sl = Array.Find(text, l => l.StartsWith($"source[{q}] ", StringComparison.Ordinal));
-                            if (sl == null) break;
-                            var sh = System.Text.RegularExpressions.Regex.Match(sl, @"shapes=(\S*)").Groups[1].Value;
-                            var hd = System.Text.RegularExpressions.Regex.Match(sl, @"hiddenAttrs=(\S*)").Groups[1].Value;
-                            specs.Add(new SecondSkinWriter.SourceSpec(File.ReadAllBytes($"{pre}body{q}.mdl"),
-                                EnabledShapes: sh.Length > 0 ? new HashSet<string>(sh.Split(',')) : null,
-                                HiddenAttributes: hd.Length > 0 ? new HashSet<string>(hd.Split(',')) : null,
-                                DropConnectors: sl.Contains("dropRedundant=True", StringComparison.Ordinal),
-                                CoverNails: anyFlagged ? sl.Contains("coverNails=True", StringComparison.Ordinal) : q == s));
-                        }
-                        shell = SecondSkinWriter.Build(specs, new[] { layer }, null, out _, log.Add);
-                    }
-                    catch (EmptyShellException) { o.WriteLine($"  layer {i}: nothing on the hands"); continue; }
-                    o.WriteLine($"  layer {i} ({ll}):");
-                    foreach (var l in log.Where(l => l.StartsWith("nail beds", StringComparison.Ordinal)
-                                                  || l.Contains("redundan", StringComparison.OrdinalIgnoreCase)
-                                                  || l.Contains("drop", StringComparison.OrdinalIgnoreCase)
-                                                  || l.StartsWith("attributes", StringComparison.Ordinal)))
-                        o.WriteLine("    " + l);
-
-                    // Nail vertices with shell over them: any shell triangle within 1 mm.
-                    SecondSkinWriter.TryReadLod0Geometry(shell, out var sp, out var su, out var st, out _, out _, skinOnly: false);
-                    int covered = 0;
-                    float worstGap = 0f;
-                    for (int v = 0; v < np.Length / 3; v++)
-                    {
-                        float best = float.MaxValue;
-                        for (int t = 0; t + 2 < st.Length; t += 3)
-                        {
-                            if (Math.Max(st[t], Math.Max(st[t + 1], st[t + 2])) * 3 + 2 >= sp.Length) continue;
-                            float cx = (sp[st[t] * 3] + sp[st[t + 1] * 3] + sp[st[t + 2] * 3]) / 3f - np[v * 3];
-                            float cy = (sp[st[t] * 3 + 1] + sp[st[t + 1] * 3 + 1] + sp[st[t + 2] * 3 + 1]) / 3f - np[v * 3 + 1];
-                            float cz = (sp[st[t] * 3 + 2] + sp[st[t + 1] * 3 + 2] + sp[st[t + 2] * 3 + 2]) / 3f - np[v * 3 + 2];
-                            best = MathF.Min(best, cx * cx + cy * cy + cz * cz);
-                        }
-                        float d = MathF.Sqrt(best);
-                        if (d <= 0.002f) covered++;
-                        worstGap = MathF.Max(worstGap, d);
-                    }
-                    o.WriteLine($"    nail verts with shell (a triangle centre within 2 mm): {covered}/{np.Length / 3}, "
-                              + $"furthest from any shell triangle {worstGap:F4}");
-                    ToeCapDiagTests.WriteObj(shell, Path.Combine(desk, $"hands_layer{i}_shell.obj"));
-
-                    // How big each nail-bed island is on the coverage map, and what the map says under it.
-                    if (layer.Coverage is { } cov)
-                    {
-                        SecondSkinWriter.TryReadLod0Geometry(hand, out _, out var hu, out var ht);
-                        int nvv = hu.Length / 2;
-                        var par = new int[nvv];
-                        for (int q = 0; q < nvv; q++) par[q] = q;
-                        int Find(int x) { while (par[x] != x) x = par[x] = par[par[x]]; return x; }
-                        for (int t = 0; t + 2 < ht.Length; t += 3)
-                        {
-                            int a = Find(ht[t]), b = Find(ht[t + 1]); if (a != b) par[a] = b;
-                            a = Find(ht[t + 1]); b = Find(ht[t + 2]); if (a != b) par[a] = b;
-                        }
-                        var cnt = new Dictionary<int, int>();
-                        for (int t = 0; t + 2 < ht.Length; t += 3) { int r = Find(ht[t]); cnt[r] = cnt.GetValueOrDefault(r) + 1; }
-                        int bedMax = (int)(cnt.Values.Max() * 0.2f);
-                        int w = layer.CoverageWidth;
-                        foreach (var r in cnt.Keys.Where(r => cnt[r] <= bedMax).Take(6))
-                        {
-                            float u0 = 9, u1 = -9, v0 = 9, v1 = -9;
-                            for (int q = 0; q < nvv; q++)
-                                if (Find(q) == r)
-                                {
-                                    u0 = MathF.Min(u0, hu[q * 2]); u1 = MathF.Max(u1, hu[q * 2]);
-                                    v0 = MathF.Min(v0, hu[q * 2 + 1]); v1 = MathF.Max(v1, hu[q * 2 + 1]);
-                                }
-                            int x0 = (int)(u0 * w), x1 = (int)(u1 * w), y0 = (int)(v0 * w), y1 = (int)(v1 * w);
-                            var vals = new List<string>();
-                            for (int y = y0 - 1; y <= y1 + 1; y++)
-                            {
-                                var row = new List<string>();
-                                for (int x = x0 - 1; x <= x1 + 1; x++)
-                                    row.Add(cov[(((y % w) + w) % w) * w + (((x % w) + w) % w)].ToString("D3"));
-                                vals.Add(string.Join(" ", row));
-                            }
-                            o.WriteLine($"    island {cnt[r]} tris: uv u {u0:F4}..{u1:F4} v {v0:F4}..{v1:F4} = "
-                                      + $"{x1 - x0 + 1}x{y1 - y0 + 1} texels; map around it:");
-                            foreach (var row in vals) o.WriteLine("      " + row);
-                        }
-                    }
-                }
-                ToeCapDiagTests.WriteObj(hand, Path.Combine(desk, "hands_body.obj"));
-                o.WriteLine($"  wrote {desk}");
-
-                // Do the nails skin like the skin under them? Nearest skin vertex per nail vertex, weights compared.
-                SecondSkinWriter.TryReadLod0Geometry(hand, out var kp, out _, out _, out var kw, out _);
-                SecondSkinWriter.TryReadLod0Geometry(hand, out var np2, out _, out _, out var nw, out _,
-                                                     skinOnly: false, nonSkin: true);
-                int same = 0, differ = 0;
-                float worstDiff = 0f;
-                var examples = new List<string>();
-                for (int v = 0; v < np2.Length / 3; v++)
-                {
-                    int best = -1; float bd = float.MaxValue;
-                    for (int k = 0; k < kp.Length / 3; k++)
-                    {
-                        float dx = kp[k * 3] - np2[v * 3], dy = kp[k * 3 + 1] - np2[v * 3 + 1], dz = kp[k * 3 + 2] - np2[v * 3 + 2];
-                        float d = dx * dx + dy * dy + dz * dz;
-                        if (d < bd) { bd = d; best = k; }
-                    }
-                    var a = nw[v].ToDictionary(x => x.Bone, x => x.W);
-                    var b = kw[best].ToDictionary(x => x.Bone, x => x.W);
-                    float diff = a.Keys.Union(b.Keys).Sum(bn => MathF.Abs(a.GetValueOrDefault(bn) - b.GetValueOrDefault(bn)));
-                    if (diff < 0.05f) same++; else differ++;
-                    if (diff > worstDiff) worstDiff = diff;
-                    if (diff >= 0.05f && examples.Count < 6)
-                        examples.Add($"nail [{string.Join(" ", nw[v].Select(x => $"{x.Bone}:{x.W:F2}"))}] vs skin "
-                                   + $"[{string.Join(" ", kw[best].Select(x => $"{x.Bone}:{x.W:F2}"))}] at {MathF.Sqrt(bd):F5}");
-                }
-                o.WriteLine($"  nail weights vs nearest skin vertex: {same} match, {differ} differ (worst L1 {worstDiff:F2})");
-                foreach (var e in examples) o.WriteLine("    " + e);
-            }
-        }
     }
 
     /// <summary>The point of triangle abc closest to p.</summary>
@@ -1483,13 +1270,12 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     /// glove, and the reason the nails showed through in the first place. Asking only the nail's own island whether
     /// it is covered left every one of them on the hand.
     /// </summary>
-    [Theory]
-    [InlineData(NeoHands)]
-    [InlineData(RueHands)]
-    public void A_glove_that_paints_only_the_fingers_takes_the_nails_off(string path)
+    [LocalDataTheory(NeolitheNeed, RueNeed)]
+    [InlineData("Neolithe")]
+    [InlineData("Rue+")]
+    public void A_glove_that_paints_only_the_fingers_takes_the_nails_off(string body)
     {
-        if (!File.Exists(path)) return;
-        var hand = File.ReadAllBytes(path);
+        var hand = Hands(body);
         const int size = 256;
         SecondSkinLayer Gate(byte[] cov) => new()
         {
@@ -1509,13 +1295,12 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     /// included — has a one-pixel anti-aliased edge (up to 74 grey) along the hand's island, which the coarse map
     /// spreads over the fingertip landings; at the old floor of 8 that took the nails off under any of them.
     /// </summary>
-    [Theory]
-    [InlineData(NeoHands)]
-    [InlineData(BiboHands)]
-    public void A_mask_edge_over_the_fingers_leaves_the_nails_alone(string path)
+    [LocalDataTheory(NeolitheNeed, BiboNeed)]
+    [InlineData("Neolithe")]
+    [InlineData("Bibo+")]
+    public void A_mask_edge_over_the_fingers_leaves_the_nails_alone(string body)
     {
-        if (!File.Exists(path)) return;
-        var hand = File.ReadAllBytes(path);
+        var hand = Hands(body);
         const int size = 256;
         var faint = PaintFingersNotNailBeds(hand, size);
         for (int i = 0; i < faint.Length; i++) if (faint[i] > 0) faint[i] = 74;
@@ -1535,14 +1320,13 @@ public class SecondSkinWriterVerbatimTests(Xunit.Abstractions.ITestOutputHelper 
     /// about a millimetre before, nothing after — and the file must not change length, since the edit is
     /// positions and normals in place.
     /// </summary>
-    [Theory]
-    [InlineData(NeoHands)]
-    [InlineData(RueHands)]
-    [InlineData(BiboHands)]
-    public void A_garment_flattens_the_nails_off_the_hand(string path)
+    [LocalDataTheory(NeolitheNeed, RueNeed, BiboNeed)]
+    [InlineData("Neolithe")]
+    [InlineData("Rue+")]
+    [InlineData("Bibo+")]
+    public void A_garment_flattens_the_nails_off_the_hand(string body)
     {
-        if (!File.Exists(path)) return;
-        var hand = File.ReadAllBytes(path);
+        var hand = Hands(body);
         const int size = 256;
         var covered = new SecondSkinLayer
         {

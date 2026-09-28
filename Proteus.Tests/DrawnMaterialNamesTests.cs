@@ -9,14 +9,13 @@ namespace Proteus.Tests;
 public class DrawnMaterialNamesTests
 {
     // Every size but Tre declares an emptied vanilla _a skin mesh beside the real _bibo one; Tre declares
-    // only _bibo. Skips when the mod is not installed.
-    private const string HeartBreakerSizes = @"E:\Penumbradt\[HS] Heart Breaker (Default)\files\size";
+    // only _bibo. Skipped when the mod is not installed (see LocalData).
+    private const string HeartBreakerSizes = LocalData.Mods + ":[HS] Heart Breaker (Default)/files/size";
 
-    [Fact]
+    [LocalDataFact(HeartBreakerSizes)]
     public void A_part_is_typed_by_the_skin_it_draws_not_an_emptied_vanilla_binding()
     {
-        if (!Directory.Exists(HeartBreakerSizes)) return;
-        var models = Directory.GetFiles(HeartBreakerSizes, "*.mdl", SearchOption.AllDirectories);
+        var models = Directory.GetFiles(LocalData.Path(HeartBreakerSizes), "*.mdl", SearchOption.AllDirectories);
         Assert.NotEmpty(models);
 
         bool sawLeftover = false;
@@ -32,12 +31,11 @@ public class DrawnMaterialNamesTests
         Assert.True(sawLeftover, "no model declares the vanilla leftover — the test no longer covers the bug");
     }
 
-    [Fact]
+    [LocalDataFact(HeartBreakerSizes)]
     public void Drawn_materials_agree_with_the_geometry_read()
     {
         // DrawnMaterialNames reads only the mesh table; UsedMaterialNames decodes vertices. Same answer.
-        if (!Directory.Exists(HeartBreakerSizes)) return;
-        foreach (var path in Directory.GetFiles(HeartBreakerSizes, "*.mdl", SearchOption.AllDirectories))
+        foreach (var path in Directory.GetFiles(LocalData.Path(HeartBreakerSizes), "*.mdl", SearchOption.AllDirectories))
         {
             var model = File.ReadAllBytes(path);
             Assert.Equal(ContentPieceResolver.UsedMaterialNames(model, SecondSkinWriter.MaterialNames(model)),

@@ -19,11 +19,7 @@ public class FaceModelWriteTests(ITestOutputHelper o)
 {
     private static IEnumerable<(string Path, byte[] Bytes)> Faces(ITestOutputHelper o)
     {
-        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
-                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
-        var sqpack = Path.Combine(game, "game", "sqpack");
-        if (!Directory.Exists(sqpack)) { o.WriteLine($"no game data at {sqpack}"); yield break; }
-        var data = new Lumina.GameData(sqpack);
+        var data = new Lumina.GameData(LocalData.Path(LocalData.GameData));
         foreach (var path in new[]
                  {
                      "chara/human/c0201/obj/face/f0001/model/c0201f0001_fac.mdl",
@@ -39,7 +35,7 @@ public class FaceModelWriteTests(ITestOutputHelper o)
     /// from the end of the bone boxes to the vertex data there is nothing but zero padding. Read 300-odd bytes
     /// early, neither holds.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void ParseFindsAFacesBoundingBoxes()
     {
         int faces = 0, withNeck = 0;
@@ -73,14 +69,15 @@ public class FaceModelWriteTests(ITestOutputHelper o)
             for (int i = boxesEnd; i < vertexData; i++)
                 Assert.True(mdl[i] == 0, $"{path}: byte {i} between the bone boxes and the vertex data is not padding");
         }
-        if (faces > 0) Assert.True(withNeck > 0, "no face carried neck morph data, so this proves nothing");
+        Assert.True(faces > 0, "no face model read out of the game data");
+        Assert.True(withNeck > 0, "no face carried neck morph data, so this proves nothing");
     }
 
     /// <summary>
     /// A brushed face saves, and touches nothing outside LOD0's vertex bytes and the stored extents — the neck
     /// morph table and the Patch 7.2 table included.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void ABrushedFaceSavesAndTouchesNothingElse()
     {
         foreach (var (path, mdl) in Faces(o))

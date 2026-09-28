@@ -18,21 +18,10 @@ namespace Proteus.Tests;
 /// </summary>
 public class GearMaterialWriterTests
 {
-    private const string SamplePack = @"E:\ModPacks\Neolithe Piercings for Proteus.pmp";
     private const string SampleMtrl = "common/1/mt_c0201b0001_neolithe_piercings.mtrl";
 
     /// <summary>A real Dawntrail material (character.shpk, 3 samplers, one 32×64 colour set + dye table).</summary>
-    private static byte[]? RealMaterial()
-    {
-        if (!File.Exists(SamplePack)) return null;
-        using var zip = ZipFile.OpenRead(SamplePack);
-        var e = zip.GetEntry(SampleMtrl);
-        if (e == null) return null;
-        using var st = e.Open();
-        using var ms = new MemoryStream();
-        st.CopyTo(ms);
-        return ms.ToArray();
-    }
+    private static byte[] RealMaterial() => LocalData.PackEntry(LocalData.PiercingsPack, SampleMtrl);
 
     private static int ColorSetStart(byte[] m)
         => 16 + m[12] * 4 + m[13] * 4 + m[14] * 4 + BitConverter.ToUInt16(m, 8) + m[15];
@@ -40,11 +29,10 @@ public class GearMaterialWriterTests
     private static float Half(byte[] m, int at)
         => (float)BitConverter.UInt16BitsToHalf(BitConverter.ToUInt16(m, at));
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Patching_one_row_leaves_every_other_byte_alone()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         // The layout this is written against. Asserted rather than assumed: if a future pack has a legacy
         // 16-row table these offsets are wrong, and the no-op guard below is what has to catch it.
@@ -76,11 +64,10 @@ public class GearMaterialWriterTests
         }
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Untouched_fields_of_a_patched_row_keep_the_authors_values()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 0;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -98,7 +85,7 @@ public class GearMaterialWriterTests
     [Fact]
     public void Nothing_to_write_returns_the_input_unchanged()
     {
-        var mtrl = RealMaterial() ?? new byte[512];
+        var mtrl = new byte[512];
         var rows = new Dictionary<int, GearColorRow> { [0] = new() { Diffuse = (1f, 1f, 1f) } };
 
         Assert.Same(mtrl, GearMaterialWriter.PatchColorTable(mtrl, null));
@@ -127,11 +114,10 @@ public class GearMaterialWriterTests
     /// first while the second decides whether an edit survives. They only have to agree; the parser's own
     /// tests pin the flag, this pins that agreement where it matters.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void The_colour_table_flag_agrees_with_what_the_writer_will_accept()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         Assert.True(TextureLoader.ParseMtrlBytes(mtrl).HasColorTable);
 
@@ -148,11 +134,10 @@ public class GearMaterialWriterTests
     /// metalness and its roughness gone, and e6257's own non-zero emissives inherited in their place. So
     /// this pins both halves — that all 2048 bytes arrive, and that nothing else moves.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Grafting_a_colour_table_moves_the_rows_and_nothing_else()
     {
         var src = RealMaterial();
-        if (src == null) return;
 
         // A destination whose table is deliberately different everywhere, and whose header differs too —
         // a different texture count and string table is exactly the case this has to survive, since the two
@@ -193,11 +178,10 @@ public class GearMaterialWriterTests
     /// The pack's own material stands in for the built one. That is not a shortcut — both are Dawntrail
     /// 32×64 materials located from their own headers, which is the entire reason this works across shaders.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_glow_rebuild_keeps_the_authors_colours_and_arms_only_the_rows_that_asked()
     {
         var pack = RealMaterial();
-        if (pack == null) return;
 
         var packTex = TextureLoader.ParseMtrlBytes(pack);
         // What makes this pack the easy case, and worth pinning: three textures, none of them a base — so
@@ -302,11 +286,10 @@ public class GearMaterialWriterTests
     /// surface that reads white at 1.0 is blowing out, and the answer is a lower dial rather than a
     /// different field.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Arming_a_scrolling_material_leaves_the_emissive_as_the_effects_brightness()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         int at = ColorSetStart(mtrl), row = 1, rowAt = at + row * 64;
         byte[] Scroll(ColorTableSubRowPreset b) => GearMaterialWriter.PatchColorTable(
@@ -361,11 +344,10 @@ public class GearMaterialWriterTests
     /// arrives at metalness 1.0, so the panel read 0 while the piece rendered metallic, and the control that
     /// would have fixed it looked as though it already had.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void The_physical_values_a_material_already_holds_can_be_read_back()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         var phys = GearMaterialWriter.ReadPhysical(mtrl);
         Assert.NotNull(phys);
@@ -405,11 +387,10 @@ public class GearMaterialWriterTests
     /// cannot land a slice off. Drop the <c>+ 0.5f</c> and the picker still looks right in the editor while
     /// the game renders a neighbouring weave, which is exactly the kind of failure nobody reports as a bug.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_tile_index_round_trips_through_its_half_encoding()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 3;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -431,11 +412,10 @@ public class GearMaterialWriterTests
     /// there. Writing an index alone would leave the row pointing at a weave at zero opacity — a silent
     /// no-op of the same shape as a sphere index with a zero mask, which is why the editor seeds that one too.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_tile_index_with_no_strength_writes_a_full_weave()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 3;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -460,11 +440,10 @@ public class GearMaterialWriterTests
     /// the whole matrix — otherwise a content pack's authored skew survives underneath a scale the user
     /// believes is plain, and the weave shears for no visible reason.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_tile_scale_writes_a_plain_matrix_with_no_skew()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 3;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -501,11 +480,10 @@ public class GearMaterialWriterTests
     /// Both are reachable: the editor's Strength and Scale controls are dimmed while no pattern is set, and
     /// dimmed here means inert-LOOKING but still draggable. Hand-authored metadata has no guard at all.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void Strength_or_scale_without_a_pattern_writes_nothing()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 3;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -537,11 +515,10 @@ public class GearMaterialWriterTests
     /// tile half written on a row the user only recoloured is an author's weave silently replaced, with no
     /// second copy to restore it from.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_row_with_no_tile_leaves_the_authors_weave_alone()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 0;
         int rowAt = ColorSetStart(mtrl) + row * 64;
@@ -561,11 +538,10 @@ public class GearMaterialWriterTests
     /// and 28-31 survive it. The editor hides the Tile block on a glow material for the same reason; this is
     /// the writer-side half of that decision, and the pair is what keeps a stale value off the shader.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.PiercingsPack)]
     public void A_glow_material_is_never_given_a_weave()
     {
         var mtrl = RealMaterial();
-        if (mtrl == null) return;
 
         const int row = 3;
         int rowAt = ColorSetStart(mtrl) + row * 64;
