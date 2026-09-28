@@ -68,9 +68,12 @@ internal sealed class UvAtlasCorrespondence : IBodyCorrespondence
     /// <param name="convert">Carries a source uv into the target's texture layout, for two bodies in different layouts
     /// (bibo and gen3, say) — see <see cref="UVRemapService.UvConverter"/>. Null when both share one. A point the
     /// conversion cannot place finds no landing, and counts against <see cref="MinCoverage"/> like any other miss.</param>
+    /// <param name="onSheet">The same conversion with next to no reach: answers only for a uv ON the source layout's
+    /// sheet. With it, islands drawn off the sheet are found (<see cref="OffSheet"/>), left out of the coverage, and
+    /// carried by the skin around them. Null skips that.</param>
     public static bool TryBuild(ModelParts source, float[] sourceUv, ModelParts target, float[] targetUv, string what,
                                 out UvAtlasCorrespondence? correspondence, out string refusal,
-                                UVRemapService.UvConversion? convert = null)
+                                UVRemapService.UvConversion? convert = null, UVRemapService.UvConversion? onSheet = null)
     {
         correspondence = null;
         int svc = source.Positions.Length / 3, tvc = target.Positions.Length / 3;
@@ -90,9 +93,18 @@ internal sealed class UvAtlasCorrespondence : IBodyCorrespondence
 
         var field = new Vector3?[svc];
         var skin = SkinVertices(source);
+        var offSheet = onSheet != null ? OffSheet(source, sourceUv, skin, onSheet) : [];
+        if (offSheet.Count * 2 > skin.Count)
+        {
+            refusal = $"Most of the source {what} body is drawn outside its texture layout, so there is no way to tell " +
+                      "which point of one body is which point of the other.";
+            return false;
+        }
+
         int landed = 0;
         foreach (int v in skin)
         {
+            if (offSheet.Contains(v)) continue;
             var p = new Vector3(source.Positions[v * 3], source.Positions[v * 3 + 1], source.Positions[v * 3 + 2]);
             var uv = new Vector2(sourceUv[v * 2], sourceUv[v * 2 + 1]);
             if (convert != null)
@@ -110,7 +122,8 @@ internal sealed class UvAtlasCorrespondence : IBodyCorrespondence
             landed++;
         }
 
-        float coverage = skin.Count > 0 ? (float)landed / skin.Count : 0f;
+        int placeable = skin.Count - offSheet.Count;
+        float coverage = placeable > 0 ? (float)landed / placeable : 0f;
         if (coverage < MinCoverage)
         {
             refusal = $"Only {coverage:P0} of the source {what} body finds its place on the target by texture " +
@@ -118,11 +131,151 @@ internal sealed class UvAtlasCorrespondence : IBodyCorrespondence
             return false;
         }
 
+        if (offSheet.Count > 0) CarryOffSheet(source, field, offSheet);
         correspondence = new UvAtlasCorrespondence(source, field,
-            $"{what}: matched by texture coordinate, {landed:N0} of {skin.Count:N0} skin vertices ({coverage:P1})");
+            $"{what}: matched by texture coordinate, {landed:N0} of {placeable:N0} skin vertices ({coverage:P1})" +
+            (offSheet.Count > 0 ? $"; {offSheet.Count:N0} drawn off the texture layout follow the skin around them" : ""));
         refusal = "";
         return true;
     }
+
+    /// <summary>
+    /// The source's skin vertices on texture islands that lie OFF its layout's sheet: whole islands, connected by
+    /// triangle, most of whose vertices sit where the sheet has nothing.
+    /// <para/>
+    /// A gen3 body's NSFW crotch detail is drawn on islands of its own in the sheet's empty space (Eve, AB Body: a
+    /// fifth to a third of the legs model). No transfer map can say where that lies on another body, so every such
+    /// vertex missed, and Eve's legs onto LaRue were refused at 73%. It is judged per ISLAND, and with
+    /// <paramref name="onSheet"/> rather than the conversion itself, because the conversion's nearest-pixel search
+    /// reaches a little way off the sheet: an island's edge, or a small island just off a big one (Eve's default legs,
+    /// by the belly), gets an answer, and that answer is a point of some other island — it landed 6-16 cm away.
+    /// </summary>
+    internal static HashSet<int> OffSheet(ModelParts source, float[] sourceUv, List<int> skin,
+                                         UVRemapService.UvConversion onSheet)
+    {
+        int vc = source.Positions.Length / 3;
+        var parent = new int[vc];
+        for (int i = 0; i < vc; i++) parent[i] = i;
+        int Root(int i)
+        {
+            while (parent[i] != i) i = parent[i] = parent[parent[i]];
+            return i;
+        }
+        foreach (var part in source.Parts)
+        {
+            if (part.Island >= 0 || !SecondSkinWriter.IsBodySkinMaterial(part.Material)) continue;
+            for (int t = 0; t + 2 < part.Triangles.Length; t += 3)
+            {
+                int a = part.Triangles[t], b = part.Triangles[t + 1], c = part.Triangles[t + 2];
+                if (a < 0 || b < 0 || c < 0 || a >= vc || b >= vc || c >= vc) continue;
+                parent[Root(b)] = Root(a);
+                parent[Root(c)] = Root(a);
+            }
+        }
+
+        var counts = new Dictionary<int, (int All, int Missed)>();
+        foreach (int v in skin)
+        {
+            float u = sourceUv[v * 2], w = sourceUv[v * 2 + 1];
+            bool missed = onSheet(u - MathF.Floor(u), w - MathF.Floor(w), source.Positions[v * 3] >= 0f ? 1 : -1) == null;
+            int r = Root(v);
+            var (all, miss) = counts.GetValueOrDefault(r);
+            counts[r] = (all + 1, miss + (missed ? 1 : 0));
+        }
+
+        var off = new HashSet<int>();
+        foreach (int v in skin)
+            if (counts[Root(v)] is var (all, missed) && missed * 2 > all)
+                off.Add(v);
+        return off;
+    }
+
+    /// <summary>
+    /// Give the off-sheet vertices the displacement of the skin they are joined to, spread inward ring by ring from
+    /// the island's seam. The seam is where the island meets the rest of the body at the same POSITION (a uv cut
+    /// splits the vertices, so no triangle crosses it). An island joined to nothing takes its nearest placed point's.
+    /// </summary>
+    private static void CarryOffSheet(ModelParts source, Vector3?[] field, HashSet<int> offSheet)
+    {
+        int vc = source.Positions.Length / 3;
+        Vector3 P(int v) => new(source.Positions[v * 3], source.Positions[v * 3 + 1], source.Positions[v * 3 + 2]);
+
+        var adj = new Dictionary<int, List<int>>();
+        void Link(int a, int b)
+        {
+            if (!adj.TryGetValue(a, out var la)) adj[a] = la = [];
+            la.Add(b);
+            if (!adj.TryGetValue(b, out var lb)) adj[b] = lb = [];
+            lb.Add(a);
+        }
+        foreach (var part in source.Parts)
+        {
+            if (part.Island >= 0 || !SecondSkinWriter.IsBodySkinMaterial(part.Material)) continue;
+            for (int t = 0; t + 2 < part.Triangles.Length; t += 3)
+                for (int k = 0; k < 3; k++)
+                {
+                    int a = part.Triangles[t + k], b = part.Triangles[t + (k + 1) % 3];
+                    if (a < 0 || b < 0 || a >= vc || b >= vc) continue;
+                    if (offSheet.Contains(a) || offSheet.Contains(b)) Link(a, b);
+                }
+        }
+
+        // Welded across the seam: every off-sheet vertex to every skin vertex at its position.
+        var at = new Dictionary<(int, int, int), List<int>>();
+        (int, int, int) Key(int v) => MeshMath.PositionKey(new SecondSkinWriter.Vec3(P(v).X, P(v).Y, P(v).Z), WeldPerMetre);
+        foreach (int v in SkinVertices(source))
+        {
+            if (!at.TryGetValue(Key(v), out var bucket)) at[Key(v)] = bucket = [];
+            bucket.Add(v);
+        }
+        foreach (int v in offSheet)
+            foreach (int m in at[Key(v)])
+                if (m != v) Link(v, m);
+
+        // Ring by ring from the seam, until the island is full or no ring reaches further.
+        var pending = new HashSet<int>(offSheet);
+        while (pending.Count > 0)
+        {
+            var ring = new List<(int V, Vector3 D)>();
+            foreach (int v in pending)
+            {
+                if (!adj.TryGetValue(v, out var near)) continue;
+                var sum = Vector3.Zero;
+                int n = 0;
+                foreach (int m in near)
+                    if (field[m] is { } d) { sum += d; n++; }
+                if (n > 0) ring.Add((v, sum / n));
+            }
+            if (ring.Count == 0) break;
+            foreach (var (v, d) in ring)
+            {
+                field[v] = d;
+                pending.Remove(v);
+            }
+        }
+
+        // Islands joined to nothing: the nearest placed point in space.
+        if (pending.Count == 0) return;
+        var placed = new List<int>();
+        for (int v = 0; v < vc; v++)
+            if (field[v] != null && !offSheet.Contains(v)) placed.Add(v);
+        if (placed.Count == 0) return;
+        foreach (int v in pending)
+        {
+            var p = P(v);
+            int best = placed[0];
+            float bestD = float.MaxValue;
+            foreach (int m in placed)
+            {
+                float d = Vector3.DistanceSquared(p, P(m));
+                if (d < bestD) (bestD, best) = (d, m);
+            }
+            field[v] = field[best];
+        }
+    }
+
+    /// <summary>Two vertices this close (0.01 mm) are one point of the surface, split only by a uv seam.</summary>
+    private const float WeldPerMetre = 100_000f;
 
     private static List<int> SkinVertices(ModelParts m)
     {
