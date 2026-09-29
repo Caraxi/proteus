@@ -26,20 +26,24 @@ namespace Proteus.Tests;
 /// </summary>
 public class BrushNormalTests(ITestOutputHelper output)
 {
+    private const string SheerElegance =
+        LocalData.Mods + ":BiboPlus Sheer Elegance/Chest size/Small/chara/equipment/e6010/model/c0201e6010_top.mdl";
+    private const string ThisOldThing =
+        LocalData.Mods + ":This Old Thing - by Solona/size/neolithe m/chara/equipment/e6255/model/c0201e6255_top.mdl";
+
     /// <summary>
     /// A garment that has not moved must come out byte-for-byte unchanged, however much of it the brush touched.
     /// <para/>
     /// The measurement that found the fault. Recomputing gave, on the same two garments with not one vertex moved:
     /// 24.8 degrees of mean change and 60% of vertices more than 10 degrees off on one, 9.1 and 27.6% on the other.
     /// </summary>
-    [Theory]
-    [InlineData(@"E:\Penumbradt\BiboPlus Sheer Elegance\Chest size\Small\chara\equipment\e6010\model\c0201e6010_top.mdl")]
-    [InlineData(@"E:\Penumbradt\This Old Thing - by Solona\size\neolithe m\chara\equipment\e6255\model\c0201e6255_top.mdl")]
-    public void A_garment_that_has_not_moved_keeps_every_normal(string file)
+    [LocalDataTheory(SheerElegance, ThisOldThing)]
+    [InlineData(SheerElegance)]
+    [InlineData(ThisOldThing)]
+    public void A_garment_that_has_not_moved_keeps_every_normal(string need)
     {
-        if (!File.Exists(file)) return;                       // the house diag rule: skip when the mod is not here
-        var m = ModelPartReader.Read(File.ReadAllBytes(file));
-        if (m == null) return;
+        var m = ModelPartReader.Read(File.ReadAllBytes(LocalData.Path(need)));
+        Assert.NotNull(m);
 
         int vc = m.Positions.Length / 3;
         var pos = new Vec3[vc];
@@ -70,7 +74,7 @@ public class BrushNormalTests(ITestOutputHelper output)
             if (outN[i].X != nrm[i].X || outN[i].Y != nrm[i].Y || outN[i].Z != nrm[i].Z) changed++;
             worst = Math.Max(worst, Angle(nrm[i], outN[i]));
         }
-        output.WriteLine($"{Path.GetFileName(file)}: {vc:N0} verts, {changed:N0} changed, " +
+        output.WriteLine($"{Path.GetFileName(LocalData.Path(need))}: {vc:N0} verts, {changed:N0} changed, " +
                          $"worst angle {worst:F3} degrees (quantisation, not a change)");
         Assert.Equal(0, changed);
     }

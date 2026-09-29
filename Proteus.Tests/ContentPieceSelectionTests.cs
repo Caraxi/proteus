@@ -22,20 +22,9 @@ namespace Proteus.Tests;
 /// </summary>
 public class ContentPieceSelectionTests
 {
-    private const string SamplePack = @"E:\ModPacks\Neolithe Piercings for Proteus.pmp";
-
-    /// <summary>A real .mdl, so the parse and the material binding are exercised rather than stubbed.</summary>
-    private static byte[]? SampleModel()
-    {
-        if (!File.Exists(SamplePack)) return null;
-        using var zip = ZipFile.OpenRead(SamplePack);
-        var e = zip.GetEntry("top/belly button heart/chara/equipment/e0000/model/c0201e0000_top.mdl");
-        if (e == null) return null;
-        using var st = e.Open();
-        using var ms = new MemoryStream();
-        st.CopyTo(ms);
-        return ms.ToArray();
-    }
+    /// <summary>A pack's piece, parsed as a real .mdl so the material binding is exercised rather than stubbed
+    /// (see <see cref="SyntheticModel.PackPiece"/>).</summary>
+    private static byte[] SampleModel() => SyntheticModel.PackPiece();
 
     private static string TempDir()
     {
@@ -154,7 +143,6 @@ public class ContentPieceSelectionTests
     public void Race_variants_collapse_into_one_pickable_piece()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -182,7 +170,6 @@ public class ContentPieceSelectionTests
     public void Pieces_are_named_by_slot_and_the_item_they_replace()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -219,7 +206,6 @@ public class ContentPieceSelectionTests
     public void The_synthesized_group_is_written_multi_select_with_nothing_on()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -269,7 +255,6 @@ public class ContentPieceSelectionTests
     public void A_v3_pack_is_written_with_its_piece_group_left_for_Penumbra_to_upgrade()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -336,7 +321,6 @@ public class ContentPieceSelectionTests
     public void A_default_model_an_option_replaces_is_dropped()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -363,7 +347,6 @@ public class ContentPieceSelectionTests
     public void An_optional_multi_select_override_does_not_shadow_the_default_copy()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -388,7 +371,6 @@ public class ContentPieceSelectionTests
     public void An_option_proteus_refuses_does_not_shadow_the_default_copy()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -414,7 +396,6 @@ public class ContentPieceSelectionTests
     public void One_checkbox_governs_a_garment_its_size_group_also_ships()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -444,9 +425,10 @@ public class ContentPieceSelectionTests
             // Off: nothing of the garment is worn, Single-group selection notwithstanding.
             Assert.All(every, p => Assert.False(SidecarDiscoveryService.PieceIsOn(p, [])));
             // On: worn — and for the wearer's own race exactly once, because the default copy no longer
-            // carries c0201 at all.
+            // carries c0201 at all: only the size option picked in the Single group does.
             Assert.All(every, p => Assert.True(SidecarDiscoveryService.PieceIsOn(p, [gate])));
-            Assert.Equal(1, every.Count(p => p.ModelFor("0201") != null));
+            Assert.All(meta.Content!, p => Assert.Null(p.ModelFor("0201")));
+            Assert.All(sized, p => Assert.NotNull(p.ModelFor("0201")));
         }
         finally { Directory.Delete(dir, true); }
     }
@@ -455,7 +437,6 @@ public class ContentPieceSelectionTests
     public void The_shadowed_default_redirect_is_stripped_from_the_copied_manifest()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -488,7 +469,6 @@ public class ContentPieceSelectionTests
     public void A_garment_that_lives_only_in_a_group_still_gets_no_checkbox_of_ours()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -544,7 +524,6 @@ public class ContentPieceSelectionTests
     public void A_single_group_garment_gets_a_slot_switch_when_the_pack_ships_other_garments()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try

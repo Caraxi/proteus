@@ -20,8 +20,8 @@ namespace Proteus.Tests;
 /// <para/>
 /// Run alone: <c>dotnet test --filter Category=Golden</c>. The baseline lives under
 /// <c>%LOCALAPPDATA%\Proteus\golden</c> (override with <c>PROTEUS_GOLDEN_DIR</c>); a missing file is
-/// recorded, <c>PROTEUS_GOLDEN=record</c> rewrites it. Shell cases need the local body mods and no-op
-/// without them.
+/// recorded, <c>PROTEUS_GOLDEN=record</c> rewrites it. The shell and retarget sets need the body mods and the
+/// sample pack (see <see cref="LocalData"/>) and are skipped without them.
 /// </summary>
 [Trait("Category", "Golden")]
 public class GoldenTests(ITestOutputHelper o)
@@ -30,26 +30,24 @@ public class GoldenTests(ITestOutputHelper o)
         Environment.GetEnvironmentVariable("PROTEUS_GOLDEN_DIR")
         ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Proteus", "golden");
 
-    private const string ToeCapPng =
-        @"E:\Penumbradt\Solona's Stockings - for Proteus\Proteus\Masks\Toe Cap.png";
-    private const string ContentPack = @"E:\ModPacks\Neolithe Piercings for Proteus.pmp";
+    private const string ToeCapPng = LocalData.Mods + ":Solona's Stockings - for Proteus/Proteus/Masks/Toe Cap.png";
     private const string ContentEntry = "top/belly button heart/chara/accessory/a0112/model/c0201a0112_wrs.mdl";
     private const string ShellMaterial = "/mt_c0201a0053_rir_a.mtrl";
     private const int ToeCapSize = 512;
 
     // ── shells ────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [LocalDataFact(SecondSkinWriterVerbatimTests.NeolitheNeed, SecondSkinWriterVerbatimTests.BiboNeed,
+                   SecondSkinWriterVerbatimTests.RueNeed, SecondSkinWriterVerbatimTests.HostRingNeed, ToeCapPng,
+                   LocalData.PiercingsPack)]
     public void Shell_output_matches_baseline()
     {
         var cases = new Cases(o);
-        var caps = ToeCapDiagTests.CapSets();
-        var toeCap = File.Exists(ToeCapPng) ? ToeCapMask(ToeCapPng) : null;
+        var caps = TestMeshes.CapSets();
+        var toeCap = ToeCapMask(LocalData.Path(ToeCapPng));
 
         foreach (var (body, parts) in SecondSkinWriterVerbatimTests.Bodies)
         {
-            if (!parts.All(File.Exists)) { o.WriteLine($"{body}: models missing, skipped"); continue; }
-
             // Fresh bytes per case: the parse cache keys on array identity and a build writes into the
             // cached parse, so sharing one array would let one case's connector pass leak into the next.
             List<byte[]> Models() => parts.Select(File.ReadAllBytes).ToList();
@@ -63,13 +61,12 @@ public class GoldenTests(ITestOutputHelper o)
                 SecondSkinWriter.Build(Models(), [Layer()], null, true, out var s, diag: d.Add) is var b ? (b, s) : default);
             cases.Shell($"{body}/bridges", d =>
                 SecondSkinWriter.Build(Models(), [Bridges()], null, false, out var s, diag: d.Add) is var b ? (b, s) : default);
-            if (toeCap != null && caps.Count > 0)
+            if (caps.Count > 0)
                 cases.Shell($"{body}/toecap", d =>
                     SecondSkinWriter.Build(Models(), [ToeCap(toeCap)], null, false, out var s, diag: d.Add,
                         authoredCaps: caps) is var b ? (b, s) : default);
             // No authored cap: the cap is generated from the mask (ToeCapSolve).
-            if (toeCap != null)
-                cases.Shell($"{body}/toecap-generated", d =>
+            cases.Shell($"{body}/toecap-generated", d =>
                     SecondSkinWriter.Build(Models(), [ToeCap(toeCap)], null, false, out var s, diag: d.Add) is var b ? (b, s) : default);
             // The body smoothing that republishes the skin under a garment: nipples on the top, the fold on the legs.
             cases.Shell($"{body}/smooth-body-top", d =>
@@ -82,23 +79,20 @@ public class GoldenTests(ITestOutputHelper o)
                     SecondSkinWriter.Build(Models(), [ToeCap(toes)], null, false, out var s, diag: d.Add) is var b ? (b, s) : default);
         }
 
-        if (File.Exists(SecondSkinWriterVerbatimTests.NeoTop) && File.Exists(SecondSkinWriterVerbatimTests.BiboTop))
-            cases.Shell("merged/neo+bibo", d =>
-                SecondSkinWriter.Build(
-                    [File.ReadAllBytes(SecondSkinWriterVerbatimTests.NeoTop),
-                     File.ReadAllBytes(SecondSkinWriterVerbatimTests.BiboTop)],
-                    [Layer()], out var s) is var b ? (b, s) : default);
+        cases.Shell("merged/neo+bibo", d =>
+            SecondSkinWriter.Build(
+                [File.ReadAllBytes(SecondSkinWriterVerbatimTests.NeoTop),
+                 File.ReadAllBytes(SecondSkinWriterVerbatimTests.BiboTop)],
+                [Layer()], out var s) is var b ? (b, s) : default);
 
-        if (ReadPackEntry(ContentEntry) is { } content)
-        {
-            var leaf = ContentPieceResolver.UsedMaterialNames(content, SecondSkinWriter.MaterialNames(content))[0];
-            var keep = SecondSkinWriter.KeepByLeaf(
-                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { leaf.TrimStart('/') });
-            cases.Shell("content/pmp", d =>
-                SecondSkinWriter.Build(Array.Empty<SecondSkinWriter.SourceSpec>(),
-                    [new SecondSkinLayer { MaterialName = ShellMaterial, Geometry = [new ContentGeometry(content, keep, false)] }],
-                    null, out var s, d.Add) is var b ? (b, s) : default);
-        }
+        var content = LocalData.PackEntry(LocalData.PiercingsPack, ContentEntry);
+        var leaf = ContentPieceResolver.UsedMaterialNames(content, SecondSkinWriter.MaterialNames(content))[0];
+        var keep = SecondSkinWriter.KeepByLeaf(
+            new HashSet<string>(StringComparer.OrdinalIgnoreCase) { leaf.TrimStart('/') });
+        cases.Shell("content/pmp", d =>
+            SecondSkinWriter.Build(Array.Empty<SecondSkinWriter.SourceSpec>(),
+                [new SecondSkinLayer { MaterialName = ShellMaterial, Geometry = [new ContentGeometry(content, keep, false)] }],
+                null, out var s, d.Add) is var b ? (b, s) : default);
 
         BustCases(cases);
         cases.Compare("shell");
@@ -106,46 +100,42 @@ public class GoldenTests(ITestOutputHelper o)
 
     // ── body retarget ─────────────────────────────────────────────────────────
 
-    private const string NeolitheChest = @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT CHEST - SmallClothes";
-    private const string NeolitheExtra = @"E:\Penumbradt\Neolithe [ALL IN ONE]\EXTRA CHEST BUFF - SmallClothes";
-    private const string NeolitheLegs  = @"E:\Penumbradt\Neolithe [ALL IN ONE]\DEFAULT LEGS - SmallClothes";
+    private const string Neolithe = LocalData.Mods + ":Neolithe [ALL IN ONE]";
+    private const string NeolitheChest = Neolithe + "/DEFAULT CHEST - SmallClothes";
+    private const string NeolitheExtra = Neolithe + "/EXTRA CHEST BUFF - SmallClothes";
+    private const string NeolitheLegs  = Neolithe + "/DEFAULT LEGS - SmallClothes";
 
-    [Fact]
+    [LocalDataFact(NeolitheChest, NeolitheExtra, NeolitheLegs)]
     public void Retarget_output_matches_baseline()
     {
         var cases = new Cases(o);
 
         // The garment stands in as a body model of a size other than the pair being refitted between, so the solve
         // has real geometry with a real body mesh to snap and real cloth (undies, pubes, piercings) to carry.
-        Retarget(cases, "chest/XS-to-L", NeolitheChest + @"\SFW M.mdl",
-                 "_top", NeolitheChest + @"\SFW XS.mdl", NeolitheChest + @"\SFW L.mdl");
+        Retarget(cases, "chest/XS-to-L", NeolitheChest + "/SFW M.mdl",
+                 "_top", NeolitheChest + "/SFW XS.mdl", NeolitheChest + "/SFW L.mdl");
 
         // Across shape families as well as the size axis, because the picker allows any pair.
-        Retarget(cases, "chest/default-to-buff", NeolitheChest + @"\SFW M.mdl",
-                 "_top", NeolitheChest + @"\SFW M.mdl", NeolitheExtra + @"\SFW M.mdl");
+        Retarget(cases, "chest/default-to-buff", NeolitheChest + "/SFW M.mdl",
+                 "_top", NeolitheChest + "/SFW M.mdl", NeolitheExtra + "/SFW M.mdl");
 
-        Retarget(cases, "legs/small-to-large", NeolitheLegs + @"\GEN B Medium.mdl",
-                 "_dwn", NeolitheLegs + @"\SFW Small.mdl", NeolitheLegs + @"\SFW Large.mdl");
+        Retarget(cases, "legs/small-to-large", NeolitheLegs + "/GEN B Medium.mdl",
+                 "_dwn", NeolitheLegs + "/SFW Small.mdl", NeolitheLegs + "/SFW Large.mdl");
 
         // Across meshes: plain legs onto a Gen family with a different vertex count, so the correspondence is by
         // texture coordinate — the route every refit onto Rue+ will take.
-        Retarget(cases, "legs/sfw-to-gen-c", NeolitheLegs + @"\SFW Medium.mdl",
-                 "_dwn", NeolitheLegs + @"\SFW Medium.mdl", NeolitheLegs + @"\GEN C Large.mdl");
+        Retarget(cases, "legs/sfw-to-gen-c", NeolitheLegs + "/SFW Medium.mdl",
+                 "_dwn", NeolitheLegs + "/SFW Medium.mdl", NeolitheLegs + "/GEN C Large.mdl");
 
         cases.Compare("retarget");
     }
 
-    private void Retarget(Cases cases, string name, string garmentPath, string slot, string sourcePath, string targetPath)
+    /// <param name="garmentNeed">A <see cref="LocalData"/> need, as are the two bodies.</param>
+    private void Retarget(Cases cases, string name, string garmentNeed, string slot, string sourceNeed, string targetNeed)
     {
-        if (!File.Exists(garmentPath) || !File.Exists(sourcePath) || !File.Exists(targetPath))
-        {
-            o.WriteLine($"{name}: models missing, skipped");
-            return;
-        }
-
-        var garmentBytes = File.ReadAllBytes(garmentPath);
-        var sourceBytes = File.ReadAllBytes(sourcePath);
-        var targetBytes = File.ReadAllBytes(targetPath);
+        var garmentBytes = File.ReadAllBytes(LocalData.Path(garmentNeed));
+        var sourceBytes = File.ReadAllBytes(LocalData.Path(sourceNeed));
+        var targetBytes = File.ReadAllBytes(LocalData.Path(targetNeed));
 
         var garment = ModelPartReader.Read(garmentBytes);
         var source = ModelPartReader.Read(sourceBytes);
@@ -156,8 +146,8 @@ public class GoldenTests(ITestOutputHelper o)
             return;
         }
 
-        if (!BodyCorrespondence.TryBuild(source, BodyRetargetDiagTests.Uv(sourceBytes), target,
-                                         BodyRetargetDiagTests.Uv(targetBytes), slot, out var built, out string refusal))
+        if (!BodyCorrespondence.TryBuild(source, TestMeshes.Uv(sourceBytes), target,
+                                         TestMeshes.Uv(targetBytes), slot, out var built, out string refusal))
         {
             cases.Text(name + "/bytes", "refused: " + refusal);
             return;
@@ -247,18 +237,6 @@ public class GoldenTests(ITestOutputHelper o)
                     mask[y * ToeCapSize + x] = 255;
         }
         return mask;
-    }
-
-    private static byte[]? ReadPackEntry(string entry)
-    {
-        if (!File.Exists(ContentPack)) return null;
-        using var zip = ZipFile.OpenRead(ContentPack);
-        var e = zip.GetEntry(entry);
-        if (e == null) return null;
-        using var st = e.Open();
-        using var ms = new MemoryStream();
-        st.CopyTo(ms);
-        return ms.ToArray();
     }
 
     // ── pixel math ────────────────────────────────────────────────────────────

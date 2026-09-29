@@ -46,7 +46,7 @@ internal static class BodyCorrespondence
 
         // Two layouts: carried across by the texture maps, or refused — landing a bibo uv on a gen3 atlas as it stands
         // would put the chest on the back.
-        UVRemapService.UvConversion? convert = null;
+        UVRemapService.UvConversion? convert = null, onSheet = null;
         string? from = LayoutOf(source, male), to = LayoutOf(target, male);
         if (from != null && to != null && from != to)
         {
@@ -64,9 +64,11 @@ internal static class BodyCorrespondence
                           "between them, so there is no way to tell which point of one body is which point of the other.";
                 return false;
             }
+            onSheet = uvRemap?.UvConverter(from, to, unmirror: true, fold: true, reach: OnSheetReach);
         }
 
-        if (UvAtlasCorrespondence.TryBuild(source, sourceUv, target, targetUv, what, out var atlas, out refusal, convert))
+        if (UvAtlasCorrespondence.TryBuild(source, sourceUv, target, targetUv, what, out var atlas, out refusal, convert,
+                                           onSheet))
         {
             correspondence = atlas;
             return true;
@@ -109,6 +111,12 @@ internal static class BodyCorrespondence
         for (int i = 0; i < wrapped.Length; i++) wrapped[i] -= MathF.Floor(wrapped[i]);
         return wrapped;
     }
+
+    /// <summary>
+    /// How far, in transfer-map pixels (a 4096 sheet), a uv may be from the sheet and still count as on it: enough for
+    /// a vertex on an island's border, whose own texel can fall just outside, and no more.
+    /// </summary>
+    internal const int OnSheetReach = 4;
 
     private static bool IsMaleLayout(string layout) => layout == "tbse" || layout.StartsWith("male ", StringComparison.Ordinal);
 

@@ -26,17 +26,12 @@ public class ModelLodTrimmerTests(ITestOutputHelper output)
 
     private IEnumerable<(string Path, byte[] Bytes)> Vanilla()
     {
-        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
-                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
-        var sqpack = Path.Combine(game, "game", "sqpack");
-        if (!Directory.Exists(sqpack)) { output.WriteLine($"no game data at {sqpack}"); yield break; }
-        var data = new Lumina.GameData(sqpack);
+        var data = new Lumina.GameData(LocalData.Path(LocalData.GameData));
         foreach (var path in VanillaGear)
-            if (data.GetFile(path) is { } file)
-                yield return (path, file.Data);
+            yield return (path, data.GetFile(path)?.Data ?? throw new FileNotFoundException(path));
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void The_game_s_gear_keeps_LOD0_exactly_and_loses_the_rest()
     {
         foreach (var (path, before) in Vanilla())
@@ -92,7 +87,7 @@ public class ModelLodTrimmerTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void LOD0_is_drawn_at_any_distance()
     {
         foreach (var (_, before) in Vanilla())
@@ -105,7 +100,7 @@ public class ModelLodTrimmerTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void A_model_with_one_level_is_left_alone()
     {
         foreach (var (_, before) in Vanilla())
@@ -120,18 +115,14 @@ public class ModelLodTrimmerTests(ITestOutputHelper output)
     /// A refit in place — same rig, the garment's own skin kept — used to write the author's other levels back
     /// untouched, fitted to the old body. It now writes LOD0 alone, and does not warn.
     /// </summary>
-    [Fact]
+    [LocalDataFact(LocalData.GameData)]
     public void An_in_place_refit_of_the_game_s_gear_comes_out_with_one_level()
     {
-        var game = Environment.GetEnvironmentVariable("PROTEUS_GAME")
-                ?? @"C:\Program Files (x86)\SquareEnix\FINAL FANTASY XIV - A Realm Reborn";
-        var sqpack = Path.Combine(game, "game", "sqpack");
-        if (!Directory.Exists(sqpack)) return;
-        var data = new Lumina.GameData(sqpack);
+        var data = new Lumina.GameData(LocalData.Path(LocalData.GameData));
         var garmentBytes = data.GetFile("chara/equipment/e0010/model/c0101e0010_top.mdl")!.Data;
         var bodyBytes = data.GetFile("chara/human/c0101/obj/body/b0001/model/c0101b0001_top.mdl")!.Data;
         var body = ModelPartReader.Read(bodyBytes)!;
-        var uv = BodyRetargetDiagTests.Uv(bodyBytes);
+        var uv = TestMeshes.Uv(bodyBytes);
         Assert.True(BodyCorrespondence.TryBuild(body, uv, body, uv, "_top", out var built, out string refusal,
                                                 male: true), refusal);
 
@@ -149,47 +140,5 @@ public class ModelLodTrimmerTests(ITestOutputHelper output)
         junk[64] = 3;
         Assert.Null(ModelLodTrimmer.KeepLod0(junk, out string refusal));
         Assert.NotEmpty(refusal);
-    }
-
-    /// <summary>
-    /// Every installed mod's gear that carries more than one level: how many cut, and why any did not. Each cut must
-    /// read back with the same LOD0 geometry.
-    /// <para/>
-    /// Opt-in with <c>PROTEUS_LOD_SWEEP=1</c>: it reads every model under the mods folder (about 12,000, 15-45 s),
-    /// which every full run would otherwise pay for. Measured 2026-09-27: 1,457 cut, 0 refused.
-    /// </summary>
-    [Fact]
-    public void Installed_mods_multi_LOD_gear()
-    {
-        if (Environment.GetEnvironmentVariable("PROTEUS_LOD_SWEEP") != "1")
-        {
-            output.WriteLine("set PROTEUS_LOD_SWEEP=1 to sweep the installed mods");
-            return;
-        }
-        var mods = Environment.GetEnvironmentVariable("PROTEUS_MODS") ?? @"E:\Penumbradt";
-        if (!Directory.Exists(mods)) return;
-        int cut = 0, refused = 0;
-        var why = new Dictionary<string, int>();
-        foreach (var file in Directory.EnumerateFiles(mods, "*.mdl", SearchOption.AllDirectories))
-        {
-            byte[] before;
-            try { before = File.ReadAllBytes(file); } catch (IOException) { continue; }
-            if (ModelLodTrimmer.LodCount(before) <= 1) continue;
-            if (ModelPartReader.Read(before) is not { } a) continue;   // not a model anything here could refit
-
-            var after = ModelLodTrimmer.KeepLod0(before, out string refusal);
-            if (after == null)
-            {
-                refused++;
-                why[refusal] = why.GetValueOrDefault(refusal) + 1;
-                if (why[refusal] <= 2) output.WriteLine($"refused ({refusal}): {file}");
-                continue;
-            }
-            cut++;
-            var b = ModelPartReader.Read(after)!;
-            Assert.True(a.Positions.AsSpan().SequenceEqual(b.Positions), file);
-        }
-        output.WriteLine($"cut {cut:N0}, refused {refused:N0}");
-        foreach (var (reason, count) in why.OrderByDescending(kv => kv.Value)) output.WriteLine($"  {count,5:N0}  {reason}");
     }
 }

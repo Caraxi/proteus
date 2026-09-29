@@ -131,8 +131,11 @@ public class UVRemapService
     /// <paramref name="fold"/> sends a point on the doubled sheet's mirrored half, going INTO a mirrored space, to its
     /// twin on the kept half instead of reporting it unmapped. Right for matching two bodies point to point, where the
     /// caller tells the twins apart by position; wrong for art, which would come out symmetric.
+    /// <paramref name="reach"/> is how many map pixels a uv off every island may search for the nearest one (see
+    /// <see cref="UvLookupReach"/>); a small reach asks whether the uv is ON the layout's sheet at all.
     /// </summary>
-    public UvConversion? UvConverter(string? from, string? to, bool unmirror = false, bool fold = false)
+    public UvConversion? UvConverter(string? from, string? to, bool unmirror = false, bool fold = false,
+                                     int reach = UvLookupReach)
     {
         if (from == null || to == null) return null;
         if (string.Equals(from, to, StringComparison.OrdinalIgnoreCase)) return null;
@@ -162,7 +165,7 @@ public class UVRemapService
             var (u, v, side) = key;
             // A -X vertex reads the other half of the sheet; unknown (0) takes the +X branch.
             if (s.FromMirrored) u = s.Unmirror && side < 0 ? MirrorU(0.5f + u * 0.5f) : 0.5f + u * 0.5f;
-            if (s.Map != null && !TryLookupUv(s.Map, u, v, out u, out v)) return null;
+            if (s.Map != null && !TryLookupUv(s.Map, u, v, out u, out v, s.Reach)) return null;
             if (s.ToMirrored)
             {
                 // A mirrored space is only the right half of its doubled counterpart; a left-half point would get a
@@ -175,22 +178,22 @@ public class UVRemapService
                 u = (u - 0.5f) * 2f;
             }
             return (u, v);
-        }, (Map: map, FromMirrored: fromMirrored, ToMirrored: toMirrored, Unmirror: unmirror, Fold: fold));
+        }, (Map: map, FromMirrored: fromMirrored, ToMirrored: toMirrored, Unmirror: unmirror, Fold: fold, Reach: reach));
     }
 
     /// <summary>
     /// How far <see cref="TryLookupUv"/> widens its search, in map pixels. Vertices often sit on island borders whose
     /// own cell is outside every island; bounded so a vertex never snaps across a truly unmapped gap.
     /// </summary>
-    private const int UvLookupReach = 48;
+    internal const int UvLookupReach = 48;
 
     /// <summary>Nearest valid correspondence to (u,v) in <paramref name="map"/>'s index space.</summary>
-    private static bool TryLookupUv(TransferMap map, float u, float v, out float su, out float sv)
+    private static bool TryLookupUv(TransferMap map, float u, float v, out float su, out float sv, int reach = UvLookupReach)
     {
         su = u; sv = v;
         int x0 = (int)MathF.Round(Math.Clamp(u, 0f, 1f) * (map.W - 1));
         int y0 = (int)MathF.Round(Math.Clamp(v, 0f, 1f) * (map.H - 1));
-        for (int r = 0; r <= UvLookupReach; r++)
+        for (int r = 0; r <= reach; r++)
         {
             for (int dy = -r; dy <= r; dy++)
             {

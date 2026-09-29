@@ -18,26 +18,10 @@ namespace Proteus.Tests;
 /// </summary>
 public class ContentImportTests
 {
-    private const string SamplePack = @"E:\ModPacks\Neolithe Piercings for Proteus.pmp";
-
     // ── synthetic packs ──────────────────────────────────────────────────────
 
-    /// <summary>
-    /// A model whose meshes are bound to <paramref name="materialName"/>. Lifted out of the sample pack
-    /// when it is present so the parse is exercised against a real .mdl, and null otherwise — the tests
-    /// that need geometry skip, like every other model-backed test in this suite.
-    /// </summary>
-    private static byte[]? SampleModel()
-    {
-        if (!File.Exists(SamplePack)) return null;
-        using var zip = ZipFile.OpenRead(SamplePack);
-        var e = zip.GetEntry("top/belly button heart/chara/equipment/e0000/model/c0201e0000_top.mdl");
-        if (e == null) return null;
-        using var st = e.Open();
-        using var ms = new MemoryStream();
-        st.CopyTo(ms);
-        return ms.ToArray();
-    }
+    /// <summary>A pack's piece: an emptied vanilla mesh beside the pack's own (see <see cref="SyntheticModel.PackPiece"/>).</summary>
+    private static byte[] SampleModel() => SyntheticModel.PackPiece();
 
     private static string WritePack(string dir, string manifestJson, IEnumerable<(string Entry, byte[] Data)> files)
     {
@@ -1653,7 +1637,6 @@ public class ContentImportTests
     public void Reads_a_v4_pack_and_binds_meshes_to_the_packs_own_material()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -1689,7 +1672,6 @@ public class ContentImportTests
     public void A_mesh_naming_a_material_the_pack_does_not_ship_is_reported_not_guessed()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try
@@ -1775,7 +1757,6 @@ public class ContentImportTests
     public void Writing_strips_every_model_redirect_and_mirrors_the_groups_into_the_sidecar()
     {
         var model = SampleModel();
-        if (model == null) return;
 
         var dir = TempDir();
         try

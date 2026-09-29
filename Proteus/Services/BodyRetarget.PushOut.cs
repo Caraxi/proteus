@@ -532,6 +532,9 @@ internal static partial class BodyRetarget
             Slope();
         }
 
+        // How far each node has been pushed out, so the settle below reports pushes and not the smoothing that rides
+        // along with them.
+        var pushedBy = new float[sets.NodeCount];
         int pushed = 0;
         foreach (int n in nodes)
         {
@@ -542,10 +545,205 @@ internal static partial class BodyRetarget
             nodeDelta[n] = new Vec3(nodeDelta[n].X + d.X * need[n],
                                     nodeDelta[n].Y + d.Y * need[n],
                                     nodeDelta[n].Z + d.Z * need[n]);
+            pushedBy[n] = need[n];
             if (need[n] > worst) worst = need[n];
             pushed++;
         }
+        // Whatever the fold guard backed off from is still inside: settled rather than left.
+        if (!Tuned.NoSettle) pushed += Settle(sets, nodes, after, nodeDelta, authored, clearBody, pushedBy, ref worst);
 
         return pushed;
+    }
+
+    /// <summary>Rounds of push-then-smooth <see cref="Settle"/> gets.</summary>
+    private const int SettleRounds = 32;
+
+    /// <summary>How many rings of neighbours around the cloth still inside <see cref="Settle"/> moves with it.</summary>
+    private const int SettleRings = 4;
+
+    /// <summary>How far each settle round takes a node toward its neighbours' movement.</summary>
+    private const float SettleRate = 0.5f;
+
+    /// <summary>How deep in the skin a node must still be for <see cref="Settle"/> to run (0.1 mm).</summary>
+    private const float SettleTolerance = 1e-4f;
+
+    /// <summary>Push-only rounds <see cref="Settle"/> finishes with, for a node one push left inside the skin on the
+    /// other side of a crease.</summary>
+    private const int SettleFinishRounds = 4;
+
+    /// <summary>
+    /// Clear what the push above could not: cloth still inside the drawn skin once its push has been applied.
+    /// <para/>
+    /// The push is one step along each node's own skin normal, and where the skin under neighbouring nodes faces
+    /// different ways that step turns their triangles over, so the fold guard halves it — all the way to nothing where
+    /// the disagreement is large. That is the underbust crease of a garment refitted onto a larger breast: the breast's
+    /// underside faces down and back, the ribs below it face forward, and the cloth the transfer carried into the crease
+    /// needs pushing both ways at once. Measured on "Coat of Many Colors" (Neolithe XS to Rue+/YAB+ Large): the guard
+    /// took pushes of 8-10 mm to zero and left 180 cloth vertices up to 8.8 mm inside the breasts, a dark band under
+    /// each one in 3ds Max.
+    /// <para/>
+    /// What cloth does there is span the crease rather than follow it into the fold, and that is what alternating the
+    /// two finds: push whatever is inside out along the skin's normal, then move each node part way toward its
+    /// neighbours' movement, so the patch moves together and draws taut across the crease instead of splitting along
+    /// it. The movement, not the position, is what is smoothed, so the author's own wrinkles ride along. Only the cloth
+    /// still inside and a few rings around it move. It finishes with a few rounds of pushing alone, because one push
+    /// along one surface's normal can land a point in a crease inside the surface on its other side; a point that is
+    /// STILL inside after those is left there rather than chased further. Nothing here runs when the push above
+    /// cleared everything, which is every refit it already handled.
+    /// </summary>
+    /// <param name="pushedBy">How far the push above moved each node, added to here: the report counts a node the
+    /// settle pushes once, and gives the furthest total push, not how far the smoothing carried a node.</param>
+    /// <returns>How many nodes it pushed that the push above had not.</returns>
+    private static int Settle(Sets sets, List<int> nodes, TargetBody after, Vec3[] nodeDelta, float[] authored,
+                              bool clearBody, float[] pushedBy, ref float worst)
+    {
+        var inSet = new bool[sets.NodeCount];
+        foreach (int n in nodes) inSet[n] = true;
+
+        // How far out along the skin's normal a node has to go to be clear, or 0 when it is.
+        float Need(int n, out Vector3 normal)
+        {
+            normal = default;
+            var p = Placed(sets, nodeDelta, n);
+            if (!after.Deepest(p, PushProbeRange, out var hit)) return 0f;
+            float s = Vector3.Dot(p - hit.Point, hit.Normal);
+            if (s >= -SettleTolerance) return 0f;
+            if (clearBody && s < -ClearDepth) return 0f;   // buried deep on purpose — see PushOut
+            normal = hit.Normal;
+            return (clearBody ? Clearance : MathF.Min(authored[n], Clearance)) - s;
+        }
+
+        var region = new List<int>();
+        var inRegion = new bool[sets.NodeCount];
+        foreach (int n in nodes)
+            if (Need(n, out _) > 0f) { region.Add(n); inRegion[n] = true; }
+        if (region.Count == 0) return 0;
+
+        // The rings around it: the cloth that has to move with it for the patch to stay in one piece.
+        var ring = new List<int>(region);
+        for (int r = 0; r < SettleRings; r++)
+        {
+            var next = new List<int>();
+            foreach (int n in ring)
+                foreach (int m in sets.Adj[n])
+                {
+                    if (!inSet[m] || inRegion[m]) continue;
+                    inRegion[m] = true;
+                    region.Add(m);
+                    next.Add(m);
+                }
+            ring = next;
+        }
+
+        var wasPushed = new bool[region.Count];
+        for (int i = 0; i < region.Count; i++) wasPushed[i] = pushedBy[region[i]] > 0f;
+        // The triangles the region touches, and which of them were already turned over before the settle: those are
+        // the push's or the transfer's, and not this pass's to take back.
+        var tris = new List<(int A, int B, int C)>();
+        for (int t = 0; t + 2 < sets.Tris.Length; t += 3)
+        {
+            int va = sets.Tris[t], vb = sets.Tris[t + 1], vc = sets.Tris[t + 2];
+            if (va < 0 || vb < 0 || vc < 0
+                || va >= sets.NodeOf.Length || vb >= sets.NodeOf.Length || vc >= sets.NodeOf.Length) continue;
+            int a = sets.NodeOf[va], b = sets.NodeOf[vb], c = sets.NodeOf[vc];
+            if (a == b || b == c || c == a || !(inRegion[a] || inRegion[b] || inRegion[c])) continue;
+            tris.Add((a, b, c));
+        }
+        var foldedBefore = new bool[tris.Count];
+        for (int t = 0; t < tris.Count; t++) foldedBefore[t] = TurnedOver(tris[t]);
+
+        // Push everything in the region still inside out along the skin's normal; whether anything was.
+        bool Push()
+        {
+            bool inside = false;
+            foreach (int n in region)
+            {
+                float need = Need(n, out var normal);
+                if (need <= 0f) continue;
+                inside = true;
+                nodeDelta[n] = new Vec3(nodeDelta[n].X + normal.X * need, nodeDelta[n].Y + normal.Y * need,
+                                        nodeDelta[n].Z + normal.Z * need);
+                pushedBy[n] += need;
+            }
+            return inside;
+        }
+
+        var smoothed = new Vec3[region.Count];
+        for (int round = 0; round < SettleRounds; round++)
+        {
+            if (!Push()) break;
+
+            // Toward the neighbours' movement, all at once so the order the nodes are visited in does not matter.
+            // Neighbours outside the region count as they are and do not move.
+            for (int i = 0; i < region.Count; i++)
+            {
+                int n = region[i];
+                var d = nodeDelta[n];
+                if (sets.Adj[n].Count == 0) { smoothed[i] = d; continue; }
+                var sum = default(Vec3);
+                foreach (int m in sets.Adj[n]) sum = new Vec3(sum.X + nodeDelta[m].X, sum.Y + nodeDelta[m].Y, sum.Z + nodeDelta[m].Z);
+                float inv = 1f / sets.Adj[n].Count;
+                smoothed[i] = new Vec3(d.X + (sum.X * inv - d.X) * SettleRate, d.Y + (sum.Y * inv - d.Y) * SettleRate,
+                                       d.Z + (sum.Z * inv - d.Z) * SettleRate);
+            }
+            for (int i = 0; i < region.Count; i++) nodeDelta[region[i]] = smoothed[i];
+        }
+
+        // The smoothing may have had the last word, and a push may have landed a point inside the skin across a
+        // crease: pushing alone until clear, or until these rounds run out.
+        for (int round = 0; round < SettleFinishRounds; round++)
+            if (!Push()) break;
+
+        // Pushed along each node's own normal with nothing to stop two neighbours stepping past each other: a triangle
+        // the settle turned over has its region corners moved toward their neighbours' movement and pushed clear again.
+        // Not halved back toward where the settle found them, the push's own guard — measured here that put 42 points
+        // back inside the breast AND turned more triangles over (78 -> 99), the failure the settle exists to undo. This
+        // way nothing goes back inside; it takes back few folds (Rue L 78 -> 79, "This Old Thing" L to Rue L 20 -> 21),
+        // because the push after the relax re-tips most of them, and what it leaves is the fold relax's (Unfold).
+        for (int pass = 0; pass < PushUnfoldPasses; pass++)
+        {
+            var folded = new HashSet<int>();
+            for (int t = 0; t < tris.Count; t++)
+            {
+                if (foldedBefore[t] || !TurnedOver(tris[t])) continue;
+                foreach (int n in new[] { tris[t].A, tris[t].B, tris[t].C })
+                    if (inRegion[n]) folded.Add(n);
+            }
+            if (folded.Count == 0) break;
+            var relaxed = new Dictionary<int, Vec3>(folded.Count);
+            foreach (int n in folded)
+            {
+                if (sets.Adj[n].Count == 0) continue;
+                var sum = default(Vec3);
+                foreach (int m in sets.Adj[n]) sum = new Vec3(sum.X + nodeDelta[m].X, sum.Y + nodeDelta[m].Y, sum.Z + nodeDelta[m].Z);
+                float inv = 1f / sets.Adj[n].Count;
+                var d = nodeDelta[n];
+                relaxed[n] = new Vec3(d.X + (sum.X * inv - d.X) * SettleRate, d.Y + (sum.Y * inv - d.Y) * SettleRate,
+                                      d.Z + (sum.Z * inv - d.Z) * SettleRate);
+            }
+            foreach (var (n, d) in relaxed) nodeDelta[n] = d;
+            Push();
+        }
+
+        int newlyPushed = 0;
+        for (int i = 0; i < region.Count; i++)
+        {
+            int n = region[i];
+            if (pushedBy[n] <= 0f) continue;
+            if (!wasPushed[i]) newlyPushed++;
+            if (pushedBy[n] > worst) worst = pushedBy[n];
+        }
+        return newlyPushed;
+
+        // Facing the other way from how the author drew it — the push's own test.
+        bool TurnedOver((int A, int B, int C) t)
+        {
+            var was = ToVector(sets.NodeAt[t.A]);
+            var n0 = Vector3.Cross(ToVector(sets.NodeAt[t.B]) - was, ToVector(sets.NodeAt[t.C]) - was);
+            if (n0.Length() <= 1e-12f) return false;   // degenerate as authored
+            var now = Placed(sets, nodeDelta, t.A);
+            var n1 = Vector3.Cross(Placed(sets, nodeDelta, t.B) - now, Placed(sets, nodeDelta, t.C) - now);
+            return Vector3.Dot(n0, n1) <= 0f;
+        }
     }
 }
