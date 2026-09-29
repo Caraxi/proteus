@@ -2543,9 +2543,9 @@
     "message": "{0}：{1}",
     "description": ""
   },
-  "Parts.Brush.Saved.Fmt": {
-    "message": "已保存。表面最多移动了 {0:F2} mm。",
-    "description": ""
+  "Parts.Brush.Saved": {
+    "message": "\u5df2\u4fdd\u5b58\u3002",
+    "description": "Status line after the Studio brush saves its change into the mod."
   },
   "Parts.Brush.Spares.Fmt": {
     "message": "有 {0} 个属于这个模型身材滑块的顶点无法随之移动，因此开启该滑块时，部分位置的穿模可能会重现。",
@@ -3264,11 +3264,11 @@
     "description": "Presets: a saved look for one mod (option ticks, colours and layer settings), shown in the strip at the top of that mod's colour editor."
   },
   "Parts.Retarget.Ambiguous.Fmt": {
-    "message": "Several sizes fit this model equally well ({0}). Pick the one you know it was made for.",
+    "message": "多个尺寸同样吻合（{0}），请自行选择。",
     "description": ""
   },
   "Parts.Retarget.Checking": {
-    "message": "Working out which size this was made for\u2026",
+    "message": "正在检测原始尺寸…",
     "description": ""
   },
   "Parts.Retarget.Chest": {
@@ -3280,15 +3280,15 @@
     "description": ""
   },
   "Parts.Retarget.Clash.Fmt": {
-    "message": "This mod already has a group (\u0022{0}\u0022) that replaces this model. The new group is set to win over it, so changing sizes there will not change this refit.",
+    "message": "分组“{0}”也会替换此模型；新分组优先。",
     "description": ""
   },
   "Parts.Retarget.ClearBody": {
-    "message": "Push the garment clear of the body",
+    "message": "将布料推出体外",
     "description": ""
   },
   "Parts.Retarget.ClearBody.Tip": {
-    "message": "On: cloth left inside the body anywhere is pushed out of it, not just cloth the refit pushed in.\nUse it when the body shows through the garment after a refit \u2014 a stocking whose mod draws its own\nleg skin over yours is the usual case, since cloth its author buried in the body is no longer hidden.\nOff (the default) leaves cloth the author tucked under the skin exactly where they put it, which is\nright for most garments: it is hidden on purpose, and pulling it out makes the fit worse.",
+    "message": "推出全部埋入体内的布料，不仅是本次转换造成的部分。\n身体透出布料时使用，例如自带腿部皮肤的丝袜。\n默认关闭：作者通常是有意将布料藏于皮肤下。",
     "description": ""
   },
   "Parts.Retarget.ClearPreview": {
@@ -3296,7 +3296,7 @@
     "description": ""
   },
   "Parts.Retarget.Exact.Fmt": {
-    "message": "This model\u0027s body mesh is exactly {0}.",
+    "message": "精确匹配：{0}。",
     "description": ""
   },
   "Parts.Retarget.Feet": {
@@ -3311,9 +3311,9 @@
     "message": "Body \u2014 {0}",
     "description": ""
   },
-  "Parts.Retarget.Guess.Fmt": {
-    "message": "Best guess: nothing matched exactly, but this one fits closest ({0:F2} mm average). Worth checking.",
-    "description": ""
+  "Parts.Retarget.Guess": {
+    "message": "\u6700\u4f73\u731c\u6d4b\uff0c\u5efa\u8bae\u6838\u5bf9\u3002",
+    "description": "Under the Body size tool's \"Made for\" size: the detector's pick is only a guess."
   },
   "Parts.Retarget.Hands": {
     "message": "Hands",
@@ -3323,20 +3323,12 @@
     "message": "Legs",
     "description": ""
   },
-  "Parts.Retarget.Likely.Fmt": {
-    "message": "Very likely \u2014 the closest fit by a clear margin ({0:F2} mm average).",
-    "description": ""
+  "Parts.Retarget.Likely": {
+    "message": "\u5f88\u53ef\u80fd\u5339\u914d\u3002",
+    "description": "Under the Body size tool's \"Made for\" size: the detector is confident in its pick."
   },
   "Parts.Retarget.LowSnap": {
-    "message": "This model\u0027s body mesh does not match the size it was made for exactly, so the seam where skin meets cloth may not come out perfect.",
-    "description": ""
-  },
-  "Parts.Retarget.Missed.Fmt": {
-    "message": "{0:N0} were too far from the body to follow it, and stayed where they were.",
-    "description": ""
-  },
-  "Parts.Retarget.Moved.Fmt": {
-    "message": "Moved up to {0:F1} mm.",
+    "message": "身体网格并非精确匹配，接缝处可能不完美。",
     "description": ""
   },
   "Parts.Retarget.NoBody": {
@@ -3344,7 +3336,7 @@
     "description": ""
   },
   "Parts.Retarget.NoBodiesForSex.Fmt": {
-    "message": "{0} has no bodies for a {1} character, and this outfit is made for one. A refit cannot change a body's sex.",
+    "message": "{0} 没有 {1} 体型；转换无法改变性别。",
     "description": ""
   },
   "Parts.Retarget.Male": {
@@ -3356,11 +3348,11 @@
     "description": ""
   },
   "Parts.Retarget.NoBodyMesh": {
-    "message": "This model carries no body mesh, so the size it was made for cannot be guessed. Pick it yourself.",
+    "message": "没有身体网格可用于检测尺寸，请自行选择。",
     "description": ""
   },
   "Parts.Retarget.NoModel": {
-    "message": "Open a model above to refit it onto another body size.",
+    "message": "请在上方打开模型以进行转换。",
     "description": ""
   },
   "Parts.Retarget.OpenInPenumbra": {
@@ -3368,23 +3360,15 @@
     "description": ""
   },
   "Parts.Retarget.OtherLods": {
-    "message": "This model has lower detail levels, which are not refitted \u2014 it will look like the old size from a distance.",
+    "message": "低细节层级不会被转换；远处仍显示旧尺寸。",
     "description": ""
   },
   "Parts.Retarget.PickBody": {
-    "message": "Pick the body mod this garment was made for. Only mods that offer a choice of body models are listed.",
-    "description": ""
-  },
-  "Parts.Retarget.PosedSkin.Fmt": {
-    "message": "{0} of this model's skin mesh(es) are only partly on the body \u2014 a heeled shoe draws its own foot, turned onto the toe \u2014 so they were kept as the author made them instead of being swapped.",
+    "message": "选择体型模组，仅列出提供多种体型模型的模组。",
     "description": ""
   },
   "Parts.Retarget.Preview": {
     "message": "Refit and preview",
-    "description": ""
-  },
-  "Parts.Retarget.Pushed.Fmt": {
-    "message": "{0:N0} pushed back out of the body, up to {1:F2} mm.",
     "description": ""
   },
   "Parts.Retarget.Save": {
@@ -3392,7 +3376,7 @@
     "description": ""
   },
   "Parts.Retarget.Saved.Fmt": {
-    "message": "{0} refit option(s) saved in \u0022{1}\u0022. Penumbra only picks a default for a mod it is adding for the first time, so choose the option there to wear it.",
+    "message": "已将 {0} 个转换结果保存到“{1}”。",
     "description": ""
   },
   "Parts.Retarget.Slot.Fmt": {
@@ -3404,11 +3388,7 @@
     "description": ""
   },
   "Parts.Retarget.Slot.Optional.Tip": {
-    "message": "Fill this in only if the garment reaches here \u2014 a long dress worn in the chest slot\nalso hangs over the legs. Leave it alone for a garment that does not.",
-    "description": ""
-  },
-  "Parts.Retarget.Snapped.Fmt": {
-    "message": "{0:N0} landed on the new body exactly ({1:P0}).",
+    "message": "仅当服装延伸至此处时才需要，例如长裙覆盖双腿。",
     "description": ""
   },
   "Parts.Retarget.To": {
@@ -3416,7 +3396,7 @@
     "description": ""
   },
   "Parts.Retarget.Undo": {
-    "message": "Remove the last refit",
+    "message": "撤销上次转换",
     "description": ""
   },
   "Parts.Retarget.Unreadable.Fmt": {
@@ -3432,63 +3412,55 @@
     "description": ""
   },
   "Parts.Tool.Retarget.Tip": {
-    "message": "Refit this model onto a different size of the body it was made for.\nThe body\u0027s own change in shape is carried onto the garment, so it keeps\nthe way it sits. Saved as a new option in this mod, leaving the author\u0027s\nown files alone.",
+    "message": "将此模型转换到另一体型或尺寸，保存为新选项。",
     "description": ""
   },
   "Parts.Retarget.CheckingPair": {
-    "message": "Checking these two are sizes of the same body\u2026",
+    "message": "正在检查尺寸是否匹配…",
     "description": ""
   },
   "Parts.Retarget.FindingBodies": {
-    "message": "Looking through your mods for body mods\u2026",
+    "message": "正在查找体型模组…",
     "description": ""
   },
   "Parts.Retarget.Baking": {
-    "message": "Making a model of this item for your character\u0027s race\u2026",
+    "message": "正在为你的种族生成模型…",
     "description": ""
   },
   "Parts.Retarget.Baked.Fmt": {
-    "message": "The game has no {1} model of this item and stretches the {0} one onto you. Body size made a {1} model from it first, the way TexTools does, and resizes that. Saving adds the metadata that makes the game load it.",
+    "message": "不存在 {1} 模型，已根据 {0} 模型生成。保存时会添加游戏所需的元数据。",
     "description": ""
   },
   "Parts.Retarget.BakeFailed.Fmt": {
-    "message": "Could not make a {0} model of this item ({1}), so it is refitted as the {2} model it is.",
+    "message": "无法生成 {0} 模型（{1}）；将直接转换 {2} 模型。",
     "description": ""
   },
   "Parts.Retarget.Cloth.Guess.Fmt": {
-    "message": "Best guess from how the cloth sits: it fits {0} most snugly, but clears every size here, so it may simply be loose. Worth checking.",
+    "message": "根据布料判断：推测为 {0}，但也可能只是宽松，建议核实。",
     "description": ""
   },
   "Parts.Retarget.Cloth.Likely.Fmt": {
-    "message": "Read from how the cloth sits: it fits {0} most snugly without passing into it, and passes into anything larger.",
+    "message": "根据布料判断：与 {0} 最贴合。",
     "description": ""
   },
   "Parts.Retarget.TooLittle.Fmt": {
-    "message": "Too little of this model\u0027s body mesh reaches the {0} to tell which size it was made for. If the garment does reach here, choose both sizes yourself \u2014 a long top\u0027s hem over the hips needs them.",
+    "message": "{0} 处身体网格过少，无法检测尺寸。若服装延伸至此，请手动选择两侧尺寸。",
     "description": ""
   },
   "Parts.NoMatches": {
     "message": "Nothing matches.",
     "description": ""
   },
-  "Parts.Retarget.Held.Fmt": {
-    "message": "{0:N0} held where the author put them.",
-    "description": ""
-  },
   "Parts.Retarget.Lock.ListTip": {
-    "message": "Untick a part to hold it where its author put it: the refit leaves it exactly as it is. Useful for things that should not stretch with the body, like a buckle or a piece of jewellery. Clicking a part on the model does the same.",
+    "message": "取消勾选可让该部位保持原位，如扣环或首饰；在模型上点击同样有效。",
     "description": ""
   },
   "Parts.Retarget.Lock.SkinTip": {
-    "message": "This is the garment\u0027s own body skin. Holding it keeps it at the old size, so the new body can show through or gap at the edges.",
+    "message": "服装自带的皮肤。保持不变会维持旧尺寸，可能导致身体透出或出现空隙。",
     "description": ""
   },
   "Parts.Retarget.Folded.Fmt": {
-    "message": "{0:N0} triangle(s) still face the wrong way, which shows as a black speck. The two bodies disagree too sharply there for the fit to be smoothed out.",
-    "description": ""
-  },
-  "Parts.Retarget.Laid.Fmt": {
-    "message": "{0:N0} skin points laid onto the new body.",
+    "message": "{0:N0} 个三角面仍翻转（黑斑），因两体型差异过大。",
     "description": ""
   },
   "Parts.Retarget.KeepShape": {
@@ -3496,7 +3468,7 @@
     "description": ""
   },
   "Parts.Retarget.KeepShape.Tip": {
-    "message": "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\npiece, turned and scaled evenly, instead of being bent to follow the body point by point.\nTicking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\nSmall closed pieces start ticked; untick any that should bend with the body.",
+    "message": "适用于硬质部件（戒指、扣环、链条）：整体移动而不弯曲。\n小型闭合部件默认勾选。",
     "description": ""
   },
   "Parts.Retarget.ReplaceSkin": {
@@ -3512,7 +3484,7 @@
     "description": ""
   },
   "Parts.Retarget.ToMany": {
-    "message": "Refit onto (tick as many sizes as you like)",
+    "message": "转换到（可多选）",
     "description": ""
   },
   "Parts.Retarget.Working.Fmt": {
@@ -3520,7 +3492,7 @@
     "description": ""
   },
   "Parts.Retarget.MadeHere": {
-    "message": "(made by a refit)",
+    "message": "（由转换生成）",
     "description": ""
   },
   "Parts.Retarget.NewGroup": {
@@ -3532,51 +3504,43 @@
     "description": ""
   },
   "Parts.Retarget.SwapShapes.Fmt": {
-    "message": "This garment had {0} shape key(s), which a skin swap does not carry over. Untick \u0022Use the new body\u0027s skin\u0022 to keep them.",
+    "message": "皮肤替换丢失了 {0} 个形态键。取消勾选「Use the new body's skin」可保留。",
     "description": ""
   },
   "Parts.Retarget.SwapSkin.Tip": {
-    "message": "On: the garment's skin for each part of the body being resized is removed and that part's new body\nskin put in its place, so the skin under and around the garment is exactly the body mod's.\nOff: the skin the garment came with is resized instead, keeping any reshaping its author did \u2014 a top\nthat lifts or presses the chest keeps doing so at the new size.",
+    "message": "开：用新体型的皮肤替换服装自带皮肤。\n关：调整服装自身皮肤尺寸，保留其塑形（聚拢、Skindenting）。",
     "description": ""
   },
   "Parts.Retarget.CutHidden": {
-    "message": "Remove skin that can't be seen",
+    "message": "移除隐藏皮肤",
     "description": ""
   },
   "Parts.Retarget.CutHidden.Tip": {
-    "message": "On: the new body's skin is left out wherever the garment's author deleted theirs \u2014 usually skin under\nthe cloth, so it cannot poke through.\nOff: the new body's skin is put in whole. Try this if the refit leaves holes where skin should show.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapKeptMeshes.Fmt": {
-    "message": "{0} skin mesh(es) belong to a part of the body that is not being resized, and were left as they are.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapSlots.Fmt": {
-    "message": "Skin swapped for the new body\u0027s where it is being resized: {0:N0} of the garment\u0027s skin triangles out, {1:N0} of the body\u0027s in.",
+    "message": "作者删除处（通常在布料下）不生成新皮肤。\n若转换留下破洞，请关闭此项。",
     "description": ""
   },
   "Parts.Retarget.NeedFromRequired.Fmt": {
-    "message": "{0}: choose the size the garment was made for.",
+    "message": "{0}：选择其原适配尺寸。",
     "description": ""
   },
   "Parts.Retarget.SlotSittingOut": {
-    "message": "Not being refitted \u2014 choose the size this part was made for, above, and it will be.",
+    "message": "未转换：选择「Made for」尺寸即可包含。",
     "description": ""
   },
   "Parts.Retarget.NeedTo.Fmt": {
-    "message": "{0}: choose a size to refit onto.",
+    "message": "{0}：选择要转换到的尺寸。",
     "description": ""
   },
   "Parts.Retarget.OtherParts": {
-    "message": "Other parts of the body (optional)",
+    "message": "其他部位（可选）",
     "description": ""
   },
   "Parts.Retarget.OtherPartsInUse.Fmt": {
-    "message": "Other parts of the body \u2014 {0} being refitted",
+    "message": "其他部位（{0} 个使用中）",
     "description": ""
   },
   "Parts.Retarget.RefusedHold": {
-    "message": "One of the chosen pairs cannot be refitted \u2014 see the message under it.",
+    "message": "有一对选择无法转换（见上方）。",
     "description": ""
   },
   "Parts.Move.ClearPolygons": {
@@ -3615,32 +3579,16 @@
     "message": "Shrink",
     "description": ""
   },
-  "Parts.Retarget.ExtrasDropped.Fmt": {
-    "message": "The old body\u0027s piercings and pubic hair ({0:N0} triangles) were left out.",
-    "description": ""
-  },
   "Parts.Retarget.FromBody": {
-    "message": "Made for body mod",
+    "message": "原适配体型",
     "description": ""
   },
   "Parts.Retarget.FromBody.Tip": {
-    "message": "The body mod this outfit was made for. Pick the same one it is being refitted onto to refit between its sizes.\nChoose another to move the outfit from that body to this one: its cloth then also takes the new body\u0027s\nbone weights, so it moves with the new body. Skirt chains and other bones of the outfit\u0027s own keep theirs.",
-    "description": ""
-  },
-  "Parts.Retarget.Reweighted.Fmt": {
-    "message": "{0:N0} cloth points now move with the new body\u0027s bones.",
-    "description": ""
-  },
-  "Parts.Retarget.Trimmed.Fmt": {
-    "message": "{0:N0} of them had more bones than a point can follow; the weakest were left out.",
-    "description": ""
-  },
-  "Parts.Retarget.Unplaced.Fmt": {
-    "message": "{0:N0} bone weights could not be written and were left out.",
+    "message": "与目标相同：在其尺寸间转换。\n不同：布料同时采用新体型的骨骼权重（服装自身骨骼保持不变）。",
     "description": ""
   },
   "Parts.Retarget.ToBody": {
-    "message": "Refit onto body mod",
+    "message": "转换到体型",
     "description": ""
   },
   "Settings.ReduceMotion": {
@@ -3676,23 +3624,23 @@
     "description": ""
   },
 "Parts.Live.PickedNotGear.Fmt": {
-    "message": "{0} is not a piece of equipment, so there is nothing to refit onto another body.",
+    "message": "{0} 不是装备，无法转换。",
     "description": ""
   },
   "Parts.Live.PickGame.Tip": {
-    "message": "Click a garment on your character to open it here \u2014 vanilla gear as well as a mod\u0027s.",
+    "message": "点击角色身上的服装即可打开，无论原版还是模组装备。",
     "description": ""
   },
   "Parts.Retarget.FromVanilla": {
-    "message": "The vanilla body",
+    "message": "原版体型",
     "description": ""
   },
   "Parts.Retarget.SaveNewMod.Fmt": {
-    "message": "Saved into a new mod, \u0022{0}\u0022.",
+    "message": "已保存到新模组“{0}”。",
     "description": ""
   },
   "Parts.Vanilla.Caveats": {
-    "message": "Vanilla gear leans on shape keys and lower detail levels, and a refit carries neither: expect the sleeves and hems where they meet other pieces to change, and the old size to show at a distance. Its textures are vanilla and stay that way.",
+    "message": "转换不保留形态键或低细节层级：接合处衣摆可能错位，远处仍显示旧尺寸。",
     "description": ""
   },
   "Parts.Vanilla.Header": {
@@ -3700,15 +3648,15 @@
     "description": ""
   },
   "Parts.Vanilla.OnlyRetarget": {
-    "message": "This is vanilla gear \u2014 there is no mod file to edit. Refit it onto your body first; that makes a mod, which the other tools can then work on.",
+    "message": "原版装备没有模组文件。请先转换以生成模组，供其他工具使用。",
     "description": ""
   },
   "Parts.Vanilla.Open.Fmt": {
-    "message": "{0} \u2014 vanilla, with no mod behind it.",
+    "message": "{0}（原版）",
     "description": ""
   },
   "Parts.Vanilla.SaveNote": {
-    "message": "Saving makes a new mod for this item, switched on for you, holding the refit and an \u0022Original\u0022 option that gives the vanilla one back.",
+    "message": "保存会生成新模组，包含转换结果及「Original」选项。",
     "description": ""
   },
   "Refit.Error.NoName.Fmt": {
@@ -3732,11 +3680,11 @@
     "description": ""
   },
   "Parts.Retarget.SaveToMod.Tip": {
-    "message": "Where the refitted model goes. This mod puts it beside the author\u0027s own sizes, so it joins any size switch they already built \u2014 but their next update takes it away again. A new mod keeps it separate, survives their updates, and can be switched off or deleted on its own.",
+    "message": "此模组：加入作者的尺寸列表，但下次更新会被覆盖。\n新模组：单独保存，更新后仍保留。",
     "description": ""
   },
   "Parts.Retarget.SaveToNewMod": {
-    "message": "A new mod of its own",
+    "message": "新模组",
     "description": ""
   },
   "Parts.Retarget.SaveToThisMod": {
@@ -3744,7 +3692,7 @@
     "description": ""
   },
 "Parts.Vanilla.Worn.Tip": {
-    "message": "You are wearing this and no mod provides it. Open it to refit it onto your body \u2014 that makes a mod of its own for it.",
+    "message": "当前穿着，未经模组化。打开即可转换到你的体型并生成新模组。",
     "description": ""
   },
   "Parts.Vanilla.WornSuffix": {
@@ -3792,31 +3740,31 @@
     "description": ""
   },
   "Parts.Retarget.Guide.Title": {
-    "message": "Body size：几点提示",
+    "message": "Body size 提示",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip1": {
-    "message": "如果安装了服装原本适配的体型模组，更改体型的效果最好。",
+    "message": "已安装服装原本适配的体型时效果最好。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip2": {
-    "message": "如果服装覆盖身体的不止一个部位（比如连衣裙），请为它覆盖的每个部位都选择原本适配的和要转换到的体型模组与尺寸。",
+    "message": "覆盖多个部位的服装（如连衣裙），需为每个部位分别设置尺寸。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip3": {
-    "message": "如果服装带有 Skindenting、聚拢效果或其他非标准造型，请取消勾选「Use the new body's skin」。如果两个体型的骨架不同，请保持勾选：此时必须使用新体型的皮肤。",
+    "message": "取消勾选「Use the new body's skin」可保留 Skindenting 或聚拢塑形，除非两体型骨架不同。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip4": {
-    "message": "预览后记得保存。在按下「Save as a new option」之前，预览不会被保留。",
+    "message": "按下「Save as a new option」前，预览不会保留。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip5": {
-    "message": "更改体型后，可以用工作室的其他笔刷（如「向外拉」）修饰细节。硬质部件请使用「移动」。",
+    "message": "之后可用其他笔刷（如「向外拉」）修饰；硬质部件用「移动」。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip6": {
-    "message": "如果可以，请从比目标尺寸更小的尺寸开始转换。",
+    "message": "尽量从较小尺寸转换到较大尺寸。",
     "description": ""
   },
   "Parts.Retarget.Guide.Ok": {

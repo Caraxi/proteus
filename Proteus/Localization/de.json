@@ -2543,9 +2543,9 @@
     "message": "{0}: {1}",
     "description": ""
   },
-  "Parts.Brush.Saved.Fmt": {
-    "message": "Gespeichert. Die Oberfläche wurde um bis zu {0:F2} mm bewegt.",
-    "description": ""
+  "Parts.Brush.Saved": {
+    "message": "Gespeichert.",
+    "description": "Status line after the Studio brush saves its change into the mod."
   },
   "Parts.Brush.Spares.Fmt": {
     "message": "{0} Punkte, die zu den Körper-Reglern dieses Modells gehören, ließen sich nicht mitbewegen — wird einer dieser Regler aktiviert, kann das Durchdringen stellenweise zurückkommen.",
@@ -3264,11 +3264,11 @@
     "description": "Presets: a saved look for one mod (option ticks, colours and layer settings), shown in the strip at the top of that mod's colour editor."
   },
   "Parts.Retarget.Ambiguous.Fmt": {
-    "message": "Several sizes fit this model equally well ({0}). Pick the one you know it was made for.",
+    "message": "Mehrere Größen passen gleich gut ({0}). Wähle die richtige.",
     "description": ""
   },
   "Parts.Retarget.Checking": {
-    "message": "Working out which size this was made for\u2026",
+    "message": "Ursprüngliche Größe wird erkannt…",
     "description": ""
   },
   "Parts.Retarget.Chest": {
@@ -3280,15 +3280,15 @@
     "description": ""
   },
   "Parts.Retarget.Clash.Fmt": {
-    "message": "This mod already has a group (\u0022{0}\u0022) that replaces this model. The new group is set to win over it, so changing sizes there will not change this refit.",
+    "message": "Gruppe \"{0}\" ersetzt dieses Modell ebenfalls; die neue Gruppe gewinnt.",
     "description": ""
   },
   "Parts.Retarget.ClearBody": {
-    "message": "Push the garment clear of the body",
+    "message": "Stoff aus dem Körper drücken",
     "description": ""
   },
   "Parts.Retarget.ClearBody.Tip": {
-    "message": "On: cloth left inside the body anywhere is pushed out of it, not just cloth the refit pushed in.\nUse it when the body shows through the garment after a refit \u2014 a stocking whose mod draws its own\nleg skin over yours is the usual case, since cloth its author buried in the body is no longer hidden.\nOff (the default) leaves cloth the author tucked under the skin exactly where they put it, which is\nright for most garments: it is hidden on purpose, and pulling it out makes the fit worse.",
+    "message": "Drückt allen im Körper vergrabenen Stoff heraus, nicht nur den, den die Anpassung vergraben hat.\nNützlich, wenn der Körper durchscheint, z. B. bei Strümpfen mit eigener Beinhaut.\nStandardmäßig aus: Autoren verstecken Stoff meist absichtlich unter der Haut.",
     "description": ""
   },
   "Parts.Retarget.ClearPreview": {
@@ -3296,7 +3296,7 @@
     "description": ""
   },
   "Parts.Retarget.Exact.Fmt": {
-    "message": "This model\u0027s body mesh is exactly {0}.",
+    "message": "Exakte Übereinstimmung: {0}.",
     "description": ""
   },
   "Parts.Retarget.Feet": {
@@ -3311,9 +3311,9 @@
     "message": "Body \u2014 {0}",
     "description": ""
   },
-  "Parts.Retarget.Guess.Fmt": {
-    "message": "Best guess: nothing matched exactly, but this one fits closest ({0:F2} mm average). Worth checking.",
-    "description": ""
+  "Parts.Retarget.Guess": {
+    "message": "Beste Sch\u00e4tzung. Bitte pr\u00fcfen.",
+    "description": "Under the Body size tool's \"Made for\" size: the detector's pick is only a guess."
   },
   "Parts.Retarget.Hands": {
     "message": "Hands",
@@ -3323,20 +3323,12 @@
     "message": "Legs",
     "description": ""
   },
-  "Parts.Retarget.Likely.Fmt": {
-    "message": "Very likely \u2014 the closest fit by a clear margin ({0:F2} mm average).",
-    "description": ""
+  "Parts.Retarget.Likely": {
+    "message": "Sehr wahrscheinlich.",
+    "description": "Under the Body size tool's \"Made for\" size: the detector is confident in its pick."
   },
   "Parts.Retarget.LowSnap": {
-    "message": "This model\u0027s body mesh does not match the size it was made for exactly, so the seam where skin meets cloth may not come out perfect.",
-    "description": ""
-  },
-  "Parts.Retarget.Missed.Fmt": {
-    "message": "{0:N0} were too far from the body to follow it, and stayed where they were.",
-    "description": ""
-  },
-  "Parts.Retarget.Moved.Fmt": {
-    "message": "Moved up to {0:F1} mm.",
+    "message": "Körper-Mesh passt nicht exakt; die Hautnaht kann unsauber ausfallen.",
     "description": ""
   },
   "Parts.Retarget.NoBody": {
@@ -3344,7 +3336,7 @@
     "description": ""
   },
   "Parts.Retarget.NoBodiesForSex.Fmt": {
-    "message": "{0} has no bodies for a {1} character, and this outfit is made for one. A refit cannot change a body's sex.",
+    "message": "{0} hat keine {1}-Körper; eine Anpassung kann das Geschlecht nicht ändern.",
     "description": ""
   },
   "Parts.Retarget.Male": {
@@ -3356,11 +3348,11 @@
     "description": ""
   },
   "Parts.Retarget.NoBodyMesh": {
-    "message": "This model carries no body mesh, so the size it was made for cannot be guessed. Pick it yourself.",
+    "message": "Kein Körper-Mesh zum Erkennen der Größe. Wähle sie selbst.",
     "description": ""
   },
   "Parts.Retarget.NoModel": {
-    "message": "Open a model above to refit it onto another body size.",
+    "message": "Öffne oben ein Modell, um es anzupassen.",
     "description": ""
   },
   "Parts.Retarget.OpenInPenumbra": {
@@ -3368,23 +3360,15 @@
     "description": ""
   },
   "Parts.Retarget.OtherLods": {
-    "message": "This model has lower detail levels, which are not refitted \u2014 it will look like the old size from a distance.",
+    "message": "Niedrigere Detailstufen werden nicht angepasst; aus der Ferne zeigt sich die alte Größe.",
     "description": ""
   },
   "Parts.Retarget.PickBody": {
-    "message": "Pick the body mod this garment was made for. Only mods that offer a choice of body models are listed.",
-    "description": ""
-  },
-  "Parts.Retarget.PosedSkin.Fmt": {
-    "message": "{0} of this model's skin mesh(es) are only partly on the body \u2014 a heeled shoe draws its own foot, turned onto the toe \u2014 so they were kept as the author made them instead of being swapped.",
+    "message": "Wähle eine Körper-Mod. Nur Mods mit mehreren Körpermodellen werden aufgeführt.",
     "description": ""
   },
   "Parts.Retarget.Preview": {
     "message": "Refit and preview",
-    "description": ""
-  },
-  "Parts.Retarget.Pushed.Fmt": {
-    "message": "{0:N0} pushed back out of the body, up to {1:F2} mm.",
     "description": ""
   },
   "Parts.Retarget.Save": {
@@ -3392,7 +3376,7 @@
     "description": ""
   },
   "Parts.Retarget.Saved.Fmt": {
-    "message": "{0} refit option(s) saved in \u0022{1}\u0022. Penumbra only picks a default for a mod it is adding for the first time, so choose the option there to wear it.",
+    "message": "{0} Anpassung(en) in \"{1}\" gespeichert.",
     "description": ""
   },
   "Parts.Retarget.Slot.Fmt": {
@@ -3404,11 +3388,7 @@
     "description": ""
   },
   "Parts.Retarget.Slot.Optional.Tip": {
-    "message": "Fill this in only if the garment reaches here \u2014 a long dress worn in the chest slot\nalso hangs over the legs. Leave it alone for a garment that does not.",
-    "description": ""
-  },
-  "Parts.Retarget.Snapped.Fmt": {
-    "message": "{0:N0} landed on the new body exactly ({1:P0}).",
+    "message": "Nur wenn das Kleidungsstück hierher reicht, z. B. ein langes Kleid über den Beinen.",
     "description": ""
   },
   "Parts.Retarget.To": {
@@ -3416,7 +3396,7 @@
     "description": ""
   },
   "Parts.Retarget.Undo": {
-    "message": "Remove the last refit",
+    "message": "Letzte Anpassung entfernen",
     "description": ""
   },
   "Parts.Retarget.Unreadable.Fmt": {
@@ -3432,63 +3412,55 @@
     "description": ""
   },
   "Parts.Tool.Retarget.Tip": {
-    "message": "Refit this model onto a different size of the body it was made for.\nThe body\u0027s own change in shape is carried onto the garment, so it keeps\nthe way it sits. Saved as a new option in this mod, leaving the author\u0027s\nown files alone.",
+    "message": "Passt dieses Modell an einen anderen Körper oder eine andere Größe an; als neue Option gespeichert.",
     "description": ""
   },
   "Parts.Retarget.CheckingPair": {
-    "message": "Checking these two are sizes of the same body\u2026",
+    "message": "Prüfe, ob die Größen zusammenpassen…",
     "description": ""
   },
   "Parts.Retarget.FindingBodies": {
-    "message": "Looking through your mods for body mods\u2026",
+    "message": "Körper-Mods werden gesucht…",
     "description": ""
   },
   "Parts.Retarget.Baking": {
-    "message": "Making a model of this item for your character\u0027s race\u2026",
+    "message": "Modell für deine Rasse wird erstellt…",
     "description": ""
   },
   "Parts.Retarget.Baked.Fmt": {
-    "message": "The game has no {1} model of this item and stretches the {0} one onto you. Body size made a {1} model from it first, the way TexTools does, and resizes that. Saving adds the metadata that makes the game load it.",
+    "message": "Kein {1}-Modell vorhanden, daher aus dem {0}-Modell erstellt. Speichern fügt die vom Spiel benötigten Metadaten hinzu.",
     "description": ""
   },
   "Parts.Retarget.BakeFailed.Fmt": {
-    "message": "Could not make a {0} model of this item ({1}), so it is refitted as the {2} model it is.",
+    "message": "{0}-Modell konnte nicht erstellt werden ({1}); {2}-Modell wird unverändert angepasst.",
     "description": ""
   },
   "Parts.Retarget.Cloth.Guess.Fmt": {
-    "message": "Best guess from how the cloth sits: it fits {0} most snugly, but clears every size here, so it may simply be loose. Worth checking.",
+    "message": "Nach dem Stoff: beste Vermutung {0}, könnte aber auch nur locker sitzen. Prüfen lohnt sich.",
     "description": ""
   },
   "Parts.Retarget.Cloth.Likely.Fmt": {
-    "message": "Read from how the cloth sits: it fits {0} most snugly without passing into it, and passes into anything larger.",
+    "message": "Nach dem Stoff: passt am engsten auf {0}.",
     "description": ""
   },
   "Parts.Retarget.TooLittle.Fmt": {
-    "message": "Too little of this model\u0027s body mesh reaches the {0} to tell which size it was made for. If the garment does reach here, choose both sizes yourself \u2014 a long top\u0027s hem over the hips needs them.",
+    "message": "Zu wenig Körper-Mesh an {0}, um eine Größe zu erkennen. Wähle beide Größen, falls das Kleidungsstück hierher reicht.",
     "description": ""
   },
   "Parts.NoMatches": {
     "message": "Nothing matches.",
     "description": ""
   },
-  "Parts.Retarget.Held.Fmt": {
-    "message": "{0:N0} held where the author put them.",
-    "description": ""
-  },
   "Parts.Retarget.Lock.ListTip": {
-    "message": "Untick a part to hold it where its author put it: the refit leaves it exactly as it is. Useful for things that should not stretch with the body, like a buckle or a piece of jewellery. Clicking a part on the model does the same.",
+    "message": "Haken bei einem Teil entfernen, um es dort zu lassen, wo der Autor es platziert hat, z. B. eine Schnalle oder Schmuck. Anklicken am Modell macht dasselbe.",
     "description": ""
   },
   "Parts.Retarget.Lock.SkinTip": {
-    "message": "This is the garment\u0027s own body skin. Holding it keeps it at the old size, so the new body can show through or gap at the edges.",
+    "message": "Die eigene Haut des Kleidungsstücks. Hält sie die alte Größe, kann der Körper durchscheinen oder es entstehen Lücken.",
     "description": ""
   },
   "Parts.Retarget.Folded.Fmt": {
-    "message": "{0:N0} triangle(s) still face the wrong way, which shows as a black speck. The two bodies disagree too sharply there for the fit to be smoothed out.",
-    "description": ""
-  },
-  "Parts.Retarget.Laid.Fmt": {
-    "message": "{0:N0} skin points laid onto the new body.",
+    "message": "{0:N0} Dreieck(e) noch umgeklappt (schwarze Flecken), wo sich die Körper zu stark unterscheiden.",
     "description": ""
   },
   "Parts.Retarget.KeepShape": {
@@ -3496,7 +3468,7 @@
     "description": ""
   },
   "Parts.Retarget.KeepShape.Tip": {
-    "message": "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\npiece, turned and scaled evenly, instead of being bent to follow the body point by point.\nTicking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\nSmall closed pieces start ticked; untick any that should bend with the body.",
+    "message": "Für starre Teile (Ringe, Schnallen, Ketten): jedes Teil bewegt sich als Ganzes statt sich zu biegen.\nKleine geschlossene Teile starten angehakt.",
     "description": ""
   },
   "Parts.Retarget.ReplaceSkin": {
@@ -3512,7 +3484,7 @@
     "description": ""
   },
   "Parts.Retarget.ToMany": {
-    "message": "Refit onto (tick as many sizes as you like)",
+    "message": "Anpassen auf (beliebig viele wählen)",
     "description": ""
   },
   "Parts.Retarget.Working.Fmt": {
@@ -3520,7 +3492,7 @@
     "description": ""
   },
   "Parts.Retarget.MadeHere": {
-    "message": "(made by a refit)",
+    "message": "(aus einer Anpassung)",
     "description": ""
   },
   "Parts.Retarget.NewGroup": {
@@ -3532,51 +3504,43 @@
     "description": ""
   },
   "Parts.Retarget.SwapShapes.Fmt": {
-    "message": "This garment had {0} shape key(s), which a skin swap does not carry over. Untick \u0022Use the new body\u0027s skin\u0022 to keep them.",
+    "message": "{0} Shape-Key(s) durch den Hauttausch verloren. Entferne den Haken bei \"Use the new body's skin\", um sie zu behalten.",
     "description": ""
   },
   "Parts.Retarget.SwapSkin.Tip": {
-    "message": "On: the garment's skin for each part of the body being resized is removed and that part's new body\nskin put in its place, so the skin under and around the garment is exactly the body mod's.\nOff: the skin the garment came with is resized instead, keeping any reshaping its author did \u2014 a top\nthat lifts or presses the chest keeps doing so at the new size.",
+    "message": "An: ersetzt die Haut des Kleidungsstücks durch die des neuen Körpers.\nAus: skaliert die eigene Haut, Formung bleibt erhalten (Push-up, Skindenting).",
     "description": ""
   },
   "Parts.Retarget.CutHidden": {
-    "message": "Remove skin that can't be seen",
+    "message": "Verdeckte Haut entfernen",
     "description": ""
   },
   "Parts.Retarget.CutHidden.Tip": {
-    "message": "On: the new body's skin is left out wherever the garment's author deleted theirs \u2014 usually skin under\nthe cloth, so it cannot poke through.\nOff: the new body's skin is put in whole. Try this if the refit leaves holes where skin should show.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapKeptMeshes.Fmt": {
-    "message": "{0} skin mesh(es) belong to a part of the body that is not being resized, and were left as they are.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapSlots.Fmt": {
-    "message": "Skin swapped for the new body\u0027s where it is being resized: {0:N0} of the garment\u0027s skin triangles out, {1:N0} of the body\u0027s in.",
+    "message": "Lässt die neue Haut dort weg, wo der Autor seine gelöscht hat, meist unter Stoff.\nAusschalten, wenn die Anpassung Löcher hinterlässt.",
     "description": ""
   },
   "Parts.Retarget.NeedFromRequired.Fmt": {
-    "message": "{0}: choose the size the garment was made for.",
+    "message": "{0}: wähle die Größe, für die es gemacht wurde.",
     "description": ""
   },
   "Parts.Retarget.SlotSittingOut": {
-    "message": "Not being refitted \u2014 choose the size this part was made for, above, and it will be.",
+    "message": "Nicht angepasst: wähle eine \"Made for\"-Größe, um es einzuschließen.",
     "description": ""
   },
   "Parts.Retarget.NeedTo.Fmt": {
-    "message": "{0}: choose a size to refit onto.",
+    "message": "{0}: wähle eine Größe zum Anpassen.",
     "description": ""
   },
   "Parts.Retarget.OtherParts": {
-    "message": "Other parts of the body (optional)",
+    "message": "Andere Körperteile (optional)",
     "description": ""
   },
   "Parts.Retarget.OtherPartsInUse.Fmt": {
-    "message": "Other parts of the body \u2014 {0} being refitted",
+    "message": "Andere Körperteile ({0} verwendet)",
     "description": ""
   },
   "Parts.Retarget.RefusedHold": {
-    "message": "One of the chosen pairs cannot be refitted \u2014 see the message under it.",
+    "message": "Ein gewähltes Paar kann nicht angepasst werden (siehe oben).",
     "description": ""
   },
   "Parts.Move.ClearPolygons": {
@@ -3615,32 +3579,16 @@
     "message": "Shrink",
     "description": ""
   },
-  "Parts.Retarget.ExtrasDropped.Fmt": {
-    "message": "The old body\u0027s piercings and pubic hair ({0:N0} triangles) were left out.",
-    "description": ""
-  },
   "Parts.Retarget.FromBody": {
-    "message": "Made for body mod",
+    "message": "Gemacht für Körper",
     "description": ""
   },
   "Parts.Retarget.FromBody.Tip": {
-    "message": "The body mod this outfit was made for. Pick the same one it is being refitted onto to refit between its sizes.\nChoose another to move the outfit from that body to this one: its cloth then also takes the new body\u0027s\nbone weights, so it moves with the new body. Skirt chains and other bones of the outfit\u0027s own keep theirs.",
-    "description": ""
-  },
-  "Parts.Retarget.Reweighted.Fmt": {
-    "message": "{0:N0} cloth points now move with the new body\u0027s bones.",
-    "description": ""
-  },
-  "Parts.Retarget.Trimmed.Fmt": {
-    "message": "{0:N0} of them had more bones than a point can follow; the weakest were left out.",
-    "description": ""
-  },
-  "Parts.Retarget.Unplaced.Fmt": {
-    "message": "{0:N0} bone weights could not be written and were left out.",
+    "message": "Gleich wie das Ziel: zwischen dessen Größen anpassen.\nAnders: der Stoff übernimmt auch die Bone-Weights des neuen Körpers (eigene Knochen des Outfits bleiben, wie sie sind).",
     "description": ""
   },
   "Parts.Retarget.ToBody": {
-    "message": "Refit onto body mod",
+    "message": "Auf Körper anpassen",
     "description": ""
   },
   "Settings.ReduceMotion": {
@@ -3676,23 +3624,23 @@
     "description": ""
   },
 "Parts.Live.PickedNotGear.Fmt": {
-    "message": "{0} is not a piece of equipment, so there is nothing to refit onto another body.",
+    "message": "{0} ist keine Ausrüstung und kann nicht angepasst werden.",
     "description": ""
   },
   "Parts.Live.PickGame.Tip": {
-    "message": "Click a garment on your character to open it here \u2014 vanilla gear as well as a mod\u0027s.",
+    "message": "Klicke ein Kleidungsstück an deinem Charakter an, um es zu öffnen — Vanilla oder gemoddet.",
     "description": ""
   },
   "Parts.Retarget.FromVanilla": {
-    "message": "The vanilla body",
+    "message": "Vanilla-Körper",
     "description": ""
   },
   "Parts.Retarget.SaveNewMod.Fmt": {
-    "message": "Saved into a new mod, \u0022{0}\u0022.",
+    "message": "In neuer Mod \"{0}\" gespeichert.",
     "description": ""
   },
   "Parts.Vanilla.Caveats": {
-    "message": "Vanilla gear leans on shape keys and lower detail levels, and a refit carries neither: expect the sleeves and hems where they meet other pieces to change, and the old size to show at a distance. Its textures are vanilla and stay that way.",
+    "message": "Anpassungen übernehmen keine Shape-Keys oder niedrigeren Detailstufen: Säume können sich an Nähten verschieben, aus der Ferne zeigt sich die alte Größe.",
     "description": ""
   },
   "Parts.Vanilla.Header": {
@@ -3700,15 +3648,15 @@
     "description": ""
   },
   "Parts.Vanilla.OnlyRetarget": {
-    "message": "This is vanilla gear \u2014 there is no mod file to edit. Refit it onto your body first; that makes a mod, which the other tools can then work on.",
+    "message": "Vanilla-Ausrüstung hat keine Mod-Datei. Zuerst anpassen, um eine für die anderen Werkzeuge zu erstellen.",
     "description": ""
   },
   "Parts.Vanilla.Open.Fmt": {
-    "message": "{0} \u2014 vanilla, with no mod behind it.",
+    "message": "{0} (Vanilla)",
     "description": ""
   },
   "Parts.Vanilla.SaveNote": {
-    "message": "Saving makes a new mod for this item, switched on for you, holding the refit and an \u0022Original\u0022 option that gives the vanilla one back.",
+    "message": "Speichern erstellt eine neue Mod mit der Anpassung und einer Option \"Original\".",
     "description": ""
   },
   "Refit.Error.NoName.Fmt": {
@@ -3732,11 +3680,11 @@
     "description": ""
   },
   "Parts.Retarget.SaveToMod.Tip": {
-    "message": "Where the refitted model goes. This mod puts it beside the author\u0027s own sizes, so it joins any size switch they already built \u2014 but their next update takes it away again. A new mod keeps it separate, survives their updates, and can be switched off or deleted on its own.",
+    "message": "Diese Mod: reiht sich bei den Größen des Autors ein, verschwindet aber beim nächsten Update.\nNeue Mod: bleibt getrennt und übersteht Updates.",
     "description": ""
   },
   "Parts.Retarget.SaveToNewMod": {
-    "message": "A new mod of its own",
+    "message": "Eine neue Mod",
     "description": ""
   },
   "Parts.Retarget.SaveToThisMod": {
@@ -3744,7 +3692,7 @@
     "description": ""
   },
 "Parts.Vanilla.Worn.Tip": {
-    "message": "You are wearing this and no mod provides it. Open it to refit it onto your body \u2014 that makes a mod of its own for it.",
+    "message": "Getragen, nicht gemoddet. Öffnen, um es als neue Mod auf deinen Körper anzupassen.",
     "description": ""
   },
   "Parts.Vanilla.WornSuffix": {
@@ -3792,31 +3740,31 @@
     "description": ""
   },
   "Parts.Retarget.Guide.Title": {
-    "message": "Body size: ein paar Tipps",
+    "message": "Body size: Tipps",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip1": {
-    "message": "Das Upscaling gelingt am besten, wenn der Körper installiert ist, für den das Stück ursprünglich gemacht wurde.",
+    "message": "Am besten, wenn der Körper installiert ist, für den das Stück gemacht wurde.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip2": {
-    "message": "Bedeckt das Stück mehr als einen Körperteil, etwa ein Kleid, wähle für jeden bedeckten Teil die Körper-Mods und Größen, für die es gemacht ist und auf die es angepasst wird.",
+    "message": "Bedeckt das Stück mehrere Körperteile, z. B. ein Kleid, setze für jeden Teil eine Größe.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip3": {
-    "message": "Hat das Stück Skindenting, einen Push-up oder eine andere ungewöhnliche Formung, entferne den Haken bei \"Use the new body's skin\". Lass ihn gesetzt, wenn die beiden Körper unterschiedliche Skelette haben: Dann ist die Haut des neuen Körpers Pflicht.",
+    "message": "Entferne den Haken bei \"Use the new body's skin\", um Skindenting oder Push-up-Formung zu behalten — außer die Körper haben unterschiedliche Skelette.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip4": {
-    "message": "Denk daran, nach der Vorschau zu speichern. Eine Vorschau bleibt erst erhalten, wenn du \"Save as a new option\" drückst.",
+    "message": "Die Vorschau bleibt erst nach \"Save as a new option\" erhalten.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip5": {
-    "message": "Details kannst du nach dem Anpassen mit den anderen Pinseln des Studios nachbessern, etwa Herausziehen. Für Teile mit harten Kanten nimm Verschieben.",
+    "message": "Danach mit den anderen Pinseln nachbessern, z. B. Herausziehen. Für starre Teile Verschieben nutzen.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip6": {
-    "message": "Starte nach Möglichkeit mit einer kleineren Größe als der, auf die du anpasst.",
+    "message": "Wenn möglich von einer kleineren zu einer größeren Größe anpassen.",
     "description": ""
   },
   "Parts.Retarget.Guide.Ok": {

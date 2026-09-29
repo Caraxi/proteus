@@ -1196,10 +1196,8 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                                                     ProteusStyle.Warn),
             BodySizeMatch.Confidence.Exact      => (string.Format(ps.RetargetExactFmt, ranking.Best!.Value.Option.Label),
                                                     ProteusStyle.Ok),
-            BodySizeMatch.Confidence.Likely     => (string.Format(ps.RetargetLikelyFmt, ranking.Best!.Value.Rms * 1000f),
-                                                    ProteusStyle.Ok),
-            BodySizeMatch.Confidence.Guess      => (string.Format(ps.RetargetGuessFmt, ranking.Best!.Value.Rms * 1000f),
-                                                    ProteusStyle.Warn),
+            BodySizeMatch.Confidence.Likely     => (ps.RetargetLikely, ProteusStyle.Ok),
+            BodySizeMatch.Confidence.Guess      => (ps.RetargetGuess, ProteusStyle.Warn),
             _                                   => (Ambiguous(ranking), ProteusStyle.Warn),
         };
 
@@ -1289,8 +1287,14 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                         }
         }
 
+        // The counts go to the log (see Describe); only what the user can act on is shown.
         var done = all[showing].Planned;
-        ImGui.TextWrapped(Describe(done.Report));
+        if (done.Report.Folded > 0)
+            using (ImRaii.PushColor(ImGuiCol.Text, ProteusStyle.Warn))
+                ImGui.TextWrapped(string.Format(ps.RetargetFoldedFmt, done.Report.Folded));
+        if (done.Report.Swap is { LostShapes: > 0 } lost)
+            using (ImRaii.PushColor(ImGuiCol.Text, ProteusStyle.Warn))
+                ImGui.TextWrapped(string.Format(ps.RetargetSwapShapesFmt, lost.LostShapes));
         if (done.Report.HasOtherLods)
             using (ImRaii.PushColor(ImGuiCol.Text, ProteusStyle.Warn))
                 ImGui.TextWrapped(ps.RetargetOtherLods);
@@ -1442,28 +1446,28 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
             ImGui.SetTooltip(ps.BrushRevertArmTip);
     }
 
+    /// <summary>A refit's counts, for the log. Not localized: it is read when diagnosing, not by the player.</summary>
     private static string Describe(BodyRetarget.Report r)
     {
-        var ps = Strings.Parts;
-        var lines = new List<string> { string.Format(ps.RetargetMovedFmt, r.WorstMove * 1000f) };
-        if (r.Snapped > 0) lines.Add(string.Format(ps.RetargetSnappedFmt, r.Snapped, r.SnapRate));
-        if (r.Pushed > 0) lines.Add(string.Format(ps.RetargetPushedFmt, r.Pushed, r.WorstPush * 1000f));
-        if (r.Missed > 0) lines.Add(string.Format(ps.RetargetMissedFmt, r.Missed));
-        if (r.Held > 0) lines.Add(string.Format(ps.RetargetHeldFmt, r.Held));
-        if (r.Folded > 0) lines.Add(string.Format(ps.RetargetFoldedFmt, r.Folded));
+        var parts = new List<string> { $"moved up to {r.WorstMove * 1000f:F1} mm" };
+        if (r.Snapped > 0) parts.Add($"{r.Snapped:N0} snapped ({r.SnapRate:P0})");
+        if (r.Pushed > 0) parts.Add($"{r.Pushed:N0} pushed out (up to {r.WorstPush * 1000f:F2} mm)");
+        if (r.Missed > 0) parts.Add($"{r.Missed:N0} too far to follow");
+        if (r.Held > 0) parts.Add($"{r.Held:N0} held");
+        if (r.Folded > 0) parts.Add($"{r.Folded:N0} folded");
         if (r.Swap is { } swap)
         {
-            if (swap.Removed > 0) lines.Add(string.Format(ps.RetargetSwappedFmt, swap.Removed, swap.Added));
-            if (swap.Kept > 0) lines.Add(string.Format(ps.RetargetSwapKeptFmt, swap.Kept));
-            if (swap.Reweighted > 0) lines.Add(string.Format(ps.RetargetReweightedFmt, swap.Reweighted));
-            if (swap.Trimmed > 0) lines.Add(string.Format(ps.RetargetTrimmedFmt, swap.Trimmed));
-            if (swap.Posed > 0) lines.Add(string.Format(ps.RetargetPosedSkinFmt, swap.Posed));
-            if (swap.ExtrasDropped > 0) lines.Add(string.Format(ps.RetargetExtrasDroppedFmt, swap.ExtrasDropped));
-            if (swap.Unplaced > 0) lines.Add(string.Format(ps.RetargetUnplacedFmt, swap.Unplaced));
-            if (swap.LostShapes > 0) lines.Add(string.Format(ps.RetargetSwapShapesFmt, swap.LostShapes));
+            parts.Add($"skin swapped {swap.Removed:N0} tris out, {swap.Added:N0} in");
+            if (swap.Kept > 0) parts.Add($"{swap.Kept} skin mesh(es) kept");
+            if (swap.Reweighted > 0) parts.Add($"{swap.Reweighted:N0} reweighted");
+            if (swap.Trimmed > 0) parts.Add($"{swap.Trimmed:N0} weights trimmed");
+            if (swap.Posed > 0) parts.Add($"{swap.Posed} posed skin mesh(es) kept");
+            if (swap.ExtrasDropped > 0) parts.Add($"{swap.ExtrasDropped:N0} extras tris dropped");
+            if (swap.Unplaced > 0) parts.Add($"{swap.Unplaced:N0} weights unplaced");
+            if (swap.LostShapes > 0) parts.Add($"{swap.LostShapes} shape key(s) lost");
         }
-        else if (r.Laid > 0) lines.Add(string.Format(ps.RetargetLaidFmt, r.Laid));
-        return string.Join("\n", lines);
+        else if (r.Laid > 0) parts.Add($"{r.Laid:N0} skin points laid");
+        return string.Join(", ", parts);
     }
 
     private static System.Numerics.Vector2 FullWidth() => new(-1, 0);
@@ -1858,6 +1862,10 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 foreach (var (slot, ranking) in dt.Result.Rankings)
                 {
                     detected[slot] = ranking;
+                    if (ranking.Best is { } top)
+                        log.Information("[Proteus] retarget: {0} {1} detected as {2} ({3}, {4:F2} mm avg, from {5})",
+                                        ctx.ModelRel, slot, top.Option.Label, ranking.Confidence, top.Rms * 1000f,
+                                        ranking.FromCloth ? "cloth" : "body mesh");
 
                     // The best guess is chosen even when it is only a guess — the line under the dropdown says how
                     // sure it is, and changing it is one click. Only a ranking with no evidence behind it at all (no
@@ -1899,7 +1907,10 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
                 showing = 0;
                 var first = done[0].Planned;
                 if (!ctx.PushPreview(first.Model)) pendingPreview = first.Model;
-                ctx.SetStatus(Describe(first.Report).Replace('\n', ' '), false);
+                ctx.SetStatus("", false);
+                foreach (var (to, plan) in done)
+                    log.Information("[Proteus] retarget: {0} onto {1}: {2}", ctx.ModelRel, to.Label,
+                                    Describe(plan.Report));
             }
         }
 

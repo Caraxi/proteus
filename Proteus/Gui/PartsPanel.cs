@@ -2361,7 +2361,8 @@ public sealed class PartsPanel
         }
         brushChangedAt = -1;
 
-        status = string.Format(Strings.Parts.BrushSavedFmt, volume.Worst * 1000f);
+        status = Strings.Parts.BrushSaved;
+        log.Information("[Proteus] brush: saved {0}, moved up to {1:F2} mm", rel, volume.Worst * 1000f);
 
         // Wind that could not land, said rather than left to look like the brush missing.
         if (result.WindMeshesRefused > 0)
@@ -2616,7 +2617,7 @@ public sealed class PartsPanel
             FlushPending: () => FlushPending(),
             PushPreview: PushRetargetPreview,
             EndPreview: () => EndLivePreview(refreshGame: true),
-            SetStatus: (text, error) => { status = text; statusIsError = error; },
+            SetStatus: (text, error) => { status = text.Length > 0 ? text : null; statusIsError = error; },
             AfterModChange: (changed, afterReload) =>
             {
                 // Whichever mod the save actually wrote into: the garment's own, or one made to hold its refits.

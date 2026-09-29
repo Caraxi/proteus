@@ -2543,9 +2543,9 @@
     "message": "{0}: {1}",
     "description": ""
   },
-  "Parts.Brush.Saved.Fmt": {
-    "message": "Сохранено. Поверхность смещена на {0:F2} мм.",
-    "description": ""
+  "Parts.Brush.Saved": {
+    "message": "\u0421\u043e\u0445\u0440\u0430\u043d\u0435\u043d\u043e.",
+    "description": "Status line after the Studio brush saves its change into the mod."
   },
   "Parts.Brush.Spares.Fmt": {
     "message": "{0} точек, принадлежащих ползункам тела этой модели, не удалось сдвинуть вместе с ней — если включить такой ползунок, местами проникновение может вернуться.",
@@ -3264,11 +3264,11 @@
     "description": "Presets: a saved look for one mod (option ticks, colours and layer settings), shown in the strip at the top of that mod's colour editor."
   },
   "Parts.Retarget.Ambiguous.Fmt": {
-    "message": "Several sizes fit this model equally well ({0}). Pick the one you know it was made for.",
+    "message": "Несколько размеров подходят одинаково ({0}). Выберите нужный.",
     "description": ""
   },
   "Parts.Retarget.Checking": {
-    "message": "Working out which size this was made for\u2026",
+    "message": "Определение исходного размера\u2026",
     "description": ""
   },
   "Parts.Retarget.Chest": {
@@ -3280,15 +3280,15 @@
     "description": ""
   },
   "Parts.Retarget.Clash.Fmt": {
-    "message": "This mod already has a group (\u0022{0}\u0022) that replaces this model. The new group is set to win over it, so changing sizes there will not change this refit.",
+    "message": "Группа «{0}» тоже заменяет эту модель; новая группа имеет приоритет.",
     "description": ""
   },
   "Parts.Retarget.ClearBody": {
-    "message": "Push the garment clear of the body",
+    "message": "Вытолкнуть ткань из тела",
     "description": ""
   },
   "Parts.Retarget.ClearBody.Tip": {
-    "message": "On: cloth left inside the body anywhere is pushed out of it, not just cloth the refit pushed in.\nUse it when the body shows through the garment after a refit \u2014 a stocking whose mod draws its own\nleg skin over yours is the usual case, since cloth its author buried in the body is no longer hidden.\nOff (the default) leaves cloth the author tucked under the skin exactly where they put it, which is\nright for most garments: it is hidden on purpose, and pulling it out makes the fit worse.",
+    "message": "Выталкивает всю утопленную ткань, а не только то, что утопила подгонка.\nИспользуйте, если тело просвечивает — например, чулки с собственной кожей ноги.\nПо умолчанию выкл.: авторы обычно прячут ткань под кожей намеренно.",
     "description": ""
   },
   "Parts.Retarget.ClearPreview": {
@@ -3296,7 +3296,7 @@
     "description": ""
   },
   "Parts.Retarget.Exact.Fmt": {
-    "message": "This model\u0027s body mesh is exactly {0}.",
+    "message": "Точное совпадение: {0}.",
     "description": ""
   },
   "Parts.Retarget.Feet": {
@@ -3311,9 +3311,9 @@
     "message": "Body \u2014 {0}",
     "description": ""
   },
-  "Parts.Retarget.Guess.Fmt": {
-    "message": "Best guess: nothing matched exactly, but this one fits closest ({0:F2} mm average). Worth checking.",
-    "description": ""
+  "Parts.Retarget.Guess": {
+    "message": "\u041b\u0443\u0447\u0448\u0430\u044f \u0434\u043e\u0433\u0430\u0434\u043a\u0430. \u0421\u0442\u043e\u0438\u0442 \u043f\u0440\u043e\u0432\u0435\u0440\u0438\u0442\u044c.",
+    "description": "Under the Body size tool's \"Made for\" size: the detector's pick is only a guess."
   },
   "Parts.Retarget.Hands": {
     "message": "Hands",
@@ -3323,20 +3323,12 @@
     "message": "Legs",
     "description": ""
   },
-  "Parts.Retarget.Likely.Fmt": {
-    "message": "Very likely \u2014 the closest fit by a clear margin ({0:F2} mm average).",
-    "description": ""
+  "Parts.Retarget.Likely": {
+    "message": "\u041e\u0447\u0435\u043d\u044c \u0432\u0435\u0440\u043e\u044f\u0442\u043d\u043e\u0435 \u0441\u043e\u0432\u043f\u0430\u0434\u0435\u043d\u0438\u0435.",
+    "description": "Under the Body size tool's \"Made for\" size: the detector is confident in its pick."
   },
   "Parts.Retarget.LowSnap": {
-    "message": "This model\u0027s body mesh does not match the size it was made for exactly, so the seam where skin meets cloth may not come out perfect.",
-    "description": ""
-  },
-  "Parts.Retarget.Missed.Fmt": {
-    "message": "{0:N0} were too far from the body to follow it, and stayed where they were.",
-    "description": ""
-  },
-  "Parts.Retarget.Moved.Fmt": {
-    "message": "Moved up to {0:F1} mm.",
+    "message": "Меш тела совпадает не точно; шов кожи может получиться неидеальным.",
     "description": ""
   },
   "Parts.Retarget.NoBody": {
@@ -3344,7 +3336,7 @@
     "description": ""
   },
   "Parts.Retarget.NoBodiesForSex.Fmt": {
-    "message": "{0} has no bodies for a {1} character, and this outfit is made for one. A refit cannot change a body's sex.",
+    "message": "У {0} нет тел {1}; подгонка не меняет пол.",
     "description": ""
   },
   "Parts.Retarget.Male": {
@@ -3356,11 +3348,11 @@
     "description": ""
   },
   "Parts.Retarget.NoBodyMesh": {
-    "message": "This model carries no body mesh, so the size it was made for cannot be guessed. Pick it yourself.",
+    "message": "Нет меша тела, по которому можно определить размер. Выберите его сами.",
     "description": ""
   },
   "Parts.Retarget.NoModel": {
-    "message": "Open a model above to refit it onto another body size.",
+    "message": "Откройте модель выше, чтобы подогнать её.",
     "description": ""
   },
   "Parts.Retarget.OpenInPenumbra": {
@@ -3368,23 +3360,15 @@
     "description": ""
   },
   "Parts.Retarget.OtherLods": {
-    "message": "This model has lower detail levels, which are not refitted \u2014 it will look like the old size from a distance.",
+    "message": "Уровни детализации ниже не подгоняются; издали виден старый размер.",
     "description": ""
   },
   "Parts.Retarget.PickBody": {
-    "message": "Pick the body mod this garment was made for. Only mods that offer a choice of body models are listed.",
-    "description": ""
-  },
-  "Parts.Retarget.PosedSkin.Fmt": {
-    "message": "{0} of this model's skin mesh(es) are only partly on the body \u2014 a heeled shoe draws its own foot, turned onto the toe \u2014 so they were kept as the author made them instead of being swapped.",
+    "message": "Выберите мод тела. В списке — только моды с выбором моделей тела.",
     "description": ""
   },
   "Parts.Retarget.Preview": {
     "message": "Refit and preview",
-    "description": ""
-  },
-  "Parts.Retarget.Pushed.Fmt": {
-    "message": "{0:N0} pushed back out of the body, up to {1:F2} mm.",
     "description": ""
   },
   "Parts.Retarget.Save": {
@@ -3392,7 +3376,7 @@
     "description": ""
   },
   "Parts.Retarget.Saved.Fmt": {
-    "message": "{0} refit option(s) saved in \u0022{1}\u0022. Penumbra only picks a default for a mod it is adding for the first time, so choose the option there to wear it.",
+    "message": "{0} подгонк(и) сохранено в «{1}».",
     "description": ""
   },
   "Parts.Retarget.Slot.Fmt": {
@@ -3404,11 +3388,7 @@
     "description": ""
   },
   "Parts.Retarget.Slot.Optional.Tip": {
-    "message": "Fill this in only if the garment reaches here \u2014 a long dress worn in the chest slot\nalso hangs over the legs. Leave it alone for a garment that does not.",
-    "description": ""
-  },
-  "Parts.Retarget.Snapped.Fmt": {
-    "message": "{0:N0} landed on the new body exactly ({1:P0}).",
+    "message": "Только если одежда доходит сюда, как длинное платье до ног.",
     "description": ""
   },
   "Parts.Retarget.To": {
@@ -3416,7 +3396,7 @@
     "description": ""
   },
   "Parts.Retarget.Undo": {
-    "message": "Remove the last refit",
+    "message": "Убрать последнюю подгонку",
     "description": ""
   },
   "Parts.Retarget.Unreadable.Fmt": {
@@ -3432,63 +3412,55 @@
     "description": ""
   },
   "Parts.Tool.Retarget.Tip": {
-    "message": "Refit this model onto a different size of the body it was made for.\nThe body\u0027s own change in shape is carried onto the garment, so it keeps\nthe way it sits. Saved as a new option in this mod, leaving the author\u0027s\nown files alone.",
+    "message": "Подогнать эту модель под другое тело или размер — сохраняется как новая опция.",
     "description": ""
   },
   "Parts.Retarget.CheckingPair": {
-    "message": "Checking these two are sizes of the same body\u2026",
+    "message": "Проверка совпадения размеров\u2026",
     "description": ""
   },
   "Parts.Retarget.FindingBodies": {
-    "message": "Looking through your mods for body mods\u2026",
+    "message": "Поиск модов тела\u2026",
     "description": ""
   },
   "Parts.Retarget.Baking": {
-    "message": "Making a model of this item for your character\u0027s race\u2026",
+    "message": "Создание модели для вашей расы\u2026",
     "description": ""
   },
   "Parts.Retarget.Baked.Fmt": {
-    "message": "The game has no {1} model of this item and stretches the {0} one onto you. Body size made a {1} model from it first, the way TexTools does, and resizes that. Saving adds the metadata that makes the game load it.",
+    "message": "Модели {1} нет, поэтому она сделана из модели {0}. Сохранение добавит метаданные, нужные игре.",
     "description": ""
   },
   "Parts.Retarget.BakeFailed.Fmt": {
-    "message": "Could not make a {0} model of this item ({1}), so it is refitted as the {2} model it is.",
+    "message": "Не удалось создать модель {0} ({1}); подгоняется модель {2} как есть.",
     "description": ""
   },
   "Parts.Retarget.Cloth.Guess.Fmt": {
-    "message": "Best guess from how the cloth sits: it fits {0} most snugly, but clears every size here, so it may simply be loose. Worth checking.",
+    "message": "По ткани: похоже на {0}, но одежда может быть просто свободной. Стоит проверить.",
     "description": ""
   },
   "Parts.Retarget.Cloth.Likely.Fmt": {
-    "message": "Read from how the cloth sits: it fits {0} most snugly without passing into it, and passes into anything larger.",
+    "message": "По ткани: плотнее всего сидит на {0}.",
     "description": ""
   },
   "Parts.Retarget.TooLittle.Fmt": {
-    "message": "Too little of this model\u0027s body mesh reaches the {0} to tell which size it was made for. If the garment does reach here, choose both sizes yourself \u2014 a long top\u0027s hem over the hips needs them.",
+    "message": "На {0} слишком мало меша тела, чтобы определить размер. Если одежда доходит сюда, выберите оба размера.",
     "description": ""
   },
   "Parts.NoMatches": {
     "message": "Nothing matches.",
     "description": ""
   },
-  "Parts.Retarget.Held.Fmt": {
-    "message": "{0:N0} held where the author put them.",
-    "description": ""
-  },
   "Parts.Retarget.Lock.ListTip": {
-    "message": "Untick a part to hold it where its author put it: the refit leaves it exactly as it is. Useful for things that should not stretch with the body, like a buckle or a piece of jewellery. Clicking a part on the model does the same.",
+    "message": "Снимите флажок у части, чтобы оставить её как у автора — пряжку, украшение. То же делает клик по ней на модели.",
     "description": ""
   },
   "Parts.Retarget.Lock.SkinTip": {
-    "message": "This is the garment\u0027s own body skin. Holding it keeps it at the old size, so the new body can show through or gap at the edges.",
+    "message": "Собственная кожа одежды. Удержание сохраняет старый размер — тело может просвечивать или образовать зазор.",
     "description": ""
   },
   "Parts.Retarget.Folded.Fmt": {
-    "message": "{0:N0} triangle(s) still face the wrong way, which shows as a black speck. The two bodies disagree too sharply there for the fit to be smoothed out.",
-    "description": ""
-  },
-  "Parts.Retarget.Laid.Fmt": {
-    "message": "{0:N0} skin points laid onto the new body.",
+    "message": "{0:N0} треугольник(ов) всё ещё вывернуто (чёрные точки) — тела слишком различаются.",
     "description": ""
   },
   "Parts.Retarget.KeepShape": {
@@ -3496,7 +3468,7 @@
     "description": ""
   },
   "Parts.Retarget.KeepShape.Tip": {
-    "message": "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\npiece, turned and scaled evenly, instead of being bent to follow the body point by point.\nTicking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\nSmall closed pieces start ticked; untick any that should bend with the body.",
+    "message": "Для жёстких деталей (кольца, пряжки, цепочки): каждая деталь двигается целиком, не изгибаясь.\nМелкие замкнутые детали отмечены по умолчанию.",
     "description": ""
   },
   "Parts.Retarget.ReplaceSkin": {
@@ -3512,7 +3484,7 @@
     "description": ""
   },
   "Parts.Retarget.ToMany": {
-    "message": "Refit onto (tick as many sizes as you like)",
+    "message": "Подогнать под (можно несколько)",
     "description": ""
   },
   "Parts.Retarget.Working.Fmt": {
@@ -3520,7 +3492,7 @@
     "description": ""
   },
   "Parts.Retarget.MadeHere": {
-    "message": "(made by a refit)",
+    "message": "(из подгонки)",
     "description": ""
   },
   "Parts.Retarget.NewGroup": {
@@ -3532,51 +3504,43 @@
     "description": ""
   },
   "Parts.Retarget.SwapShapes.Fmt": {
-    "message": "This garment had {0} shape key(s), which a skin swap does not carry over. Untick \u0022Use the new body\u0027s skin\u0022 to keep them.",
+    "message": "{0} ключ(и) формы потеряно при замене кожи. Снимите \"Use the new body's skin\", чтобы их сохранить.",
     "description": ""
   },
   "Parts.Retarget.SwapSkin.Tip": {
-    "message": "On: the garment's skin for each part of the body being resized is removed and that part's new body\nskin put in its place, so the skin under and around the garment is exactly the body mod's.\nOff: the skin the garment came with is resized instead, keeping any reshaping its author did \u2014 a top\nthat lifts or presses the chest keeps doing so at the new size.",
+    "message": "Вкл.: заменяет кожу одежды кожей нового тела.\nВыкл.: изменяет размер собственной кожи одежды, сохраняя её форму (пуш-ап, Skindenting).",
     "description": ""
   },
   "Parts.Retarget.CutHidden": {
-    "message": "Remove skin that can't be seen",
+    "message": "Убрать скрытую кожу",
     "description": ""
   },
   "Parts.Retarget.CutHidden.Tip": {
-    "message": "On: the new body's skin is left out wherever the garment's author deleted theirs \u2014 usually skin under\nthe cloth, so it cannot poke through.\nOff: the new body's skin is put in whole. Try this if the refit leaves holes where skin should show.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapKeptMeshes.Fmt": {
-    "message": "{0} skin mesh(es) belong to a part of the body that is not being resized, and were left as they are.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapSlots.Fmt": {
-    "message": "Skin swapped for the new body\u0027s where it is being resized: {0:N0} of the garment\u0027s skin triangles out, {1:N0} of the body\u0027s in.",
+    "message": "Не добавляет новую кожу там, где автор удалил свою — обычно под тканью.\nВыключите, если после подгонки остаются дыры.",
     "description": ""
   },
   "Parts.Retarget.NeedFromRequired.Fmt": {
-    "message": "{0}: choose the size the garment was made for.",
+    "message": "{0}: выберите размер, для которого это сделано.",
     "description": ""
   },
   "Parts.Retarget.SlotSittingOut": {
-    "message": "Not being refitted \u2014 choose the size this part was made for, above, and it will be.",
+    "message": "Не подгоняется: выберите размер «Сделано для», чтобы включить эту часть.",
     "description": ""
   },
   "Parts.Retarget.NeedTo.Fmt": {
-    "message": "{0}: choose a size to refit onto.",
+    "message": "{0}: выберите размер, под который подгонять.",
     "description": ""
   },
   "Parts.Retarget.OtherParts": {
-    "message": "Other parts of the body (optional)",
+    "message": "Другие части тела (необязательно)",
     "description": ""
   },
   "Parts.Retarget.OtherPartsInUse.Fmt": {
-    "message": "Other parts of the body \u2014 {0} being refitted",
+    "message": "Другие части тела (используется: {0})",
     "description": ""
   },
   "Parts.Retarget.RefusedHold": {
-    "message": "One of the chosen pairs cannot be refitted \u2014 see the message under it.",
+    "message": "Одну из выбранных пар подогнать нельзя (см. выше).",
     "description": ""
   },
   "Parts.Move.ClearPolygons": {
@@ -3615,32 +3579,16 @@
     "message": "Shrink",
     "description": ""
   },
-  "Parts.Retarget.ExtrasDropped.Fmt": {
-    "message": "The old body\u0027s piercings and pubic hair ({0:N0} triangles) were left out.",
-    "description": ""
-  },
   "Parts.Retarget.FromBody": {
-    "message": "Made for body mod",
+    "message": "Сделано для тела",
     "description": ""
   },
   "Parts.Retarget.FromBody.Tip": {
-    "message": "The body mod this outfit was made for. Pick the same one it is being refitted onto to refit between its sizes.\nChoose another to move the outfit from that body to this one: its cloth then also takes the new body\u0027s\nbone weights, so it moves with the new body. Skirt chains and other bones of the outfit\u0027s own keep theirs.",
-    "description": ""
-  },
-  "Parts.Retarget.Reweighted.Fmt": {
-    "message": "{0:N0} cloth points now move with the new body\u0027s bones.",
-    "description": ""
-  },
-  "Parts.Retarget.Trimmed.Fmt": {
-    "message": "{0:N0} of them had more bones than a point can follow; the weakest were left out.",
-    "description": ""
-  },
-  "Parts.Retarget.Unplaced.Fmt": {
-    "message": "{0:N0} bone weights could not be written and were left out.",
+    "message": "То же тело: подгонка между его размерами.\nДругое тело: одежда также берёт веса костей нового тела (свои кости наряда остаются прежними).",
     "description": ""
   },
   "Parts.Retarget.ToBody": {
-    "message": "Refit onto body mod",
+    "message": "Подогнать под тело",
     "description": ""
   },
   "Settings.ReduceMotion": {
@@ -3676,23 +3624,23 @@
     "description": ""
   },
 "Parts.Live.PickedNotGear.Fmt": {
-    "message": "{0} is not a piece of equipment, so there is nothing to refit onto another body.",
+    "message": "{0} — не экипировка, подогнать нельзя.",
     "description": ""
   },
   "Parts.Live.PickGame.Tip": {
-    "message": "Click a garment on your character to open it here \u2014 vanilla gear as well as a mod\u0027s.",
+    "message": "Щёлкните вещь на персонаже, чтобы открыть её — ванильную или модифицированную.",
     "description": ""
   },
   "Parts.Retarget.FromVanilla": {
-    "message": "The vanilla body",
+    "message": "Ванильное тело",
     "description": ""
   },
   "Parts.Retarget.SaveNewMod.Fmt": {
-    "message": "Saved into a new mod, \u0022{0}\u0022.",
+    "message": "Сохранено в новый мод «{0}».",
     "description": ""
   },
   "Parts.Vanilla.Caveats": {
-    "message": "Vanilla gear leans on shape keys and lower detail levels, and a refit carries neither: expect the sleeves and hems where they meet other pieces to change, and the old size to show at a distance. Its textures are vanilla and stay that way.",
+    "message": "Подгонка не переносит ключи формы и уровни детализации ниже: швы могут сместиться в местах стыков, а издали виден старый размер.",
     "description": ""
   },
   "Parts.Vanilla.Header": {
@@ -3700,15 +3648,15 @@
     "description": ""
   },
   "Parts.Vanilla.OnlyRetarget": {
-    "message": "This is vanilla gear \u2014 there is no mod file to edit. Refit it onto your body first; that makes a mod, which the other tools can then work on.",
+    "message": "У ванильной экипировки нет файла мода. Сначала подгоните её, чтобы он появился для других инструментов.",
     "description": ""
   },
   "Parts.Vanilla.Open.Fmt": {
-    "message": "{0} \u2014 vanilla, with no mod behind it.",
+    "message": "{0} (ваниль)",
     "description": ""
   },
   "Parts.Vanilla.SaveNote": {
-    "message": "Saving makes a new mod for this item, switched on for you, holding the refit and an \u0022Original\u0022 option that gives the vanilla one back.",
+    "message": "Сохранение создаёт новый мод с подгонкой и опцией «Original».",
     "description": ""
   },
   "Refit.Error.NoName.Fmt": {
@@ -3732,11 +3680,11 @@
     "description": ""
   },
   "Parts.Retarget.SaveToMod.Tip": {
-    "message": "Where the refitted model goes. This mod puts it beside the author\u0027s own sizes, so it joins any size switch they already built \u2014 but their next update takes it away again. A new mod keeps it separate, survives their updates, and can be switched off or deleted on its own.",
+    "message": "Этот мод: добавляется к авторским размерам, но пропадёт при следующем обновлении.\nНовый мод: хранится отдельно и переживёт обновления.",
     "description": ""
   },
   "Parts.Retarget.SaveToNewMod": {
-    "message": "A new mod of its own",
+    "message": "Новый мод",
     "description": ""
   },
   "Parts.Retarget.SaveToThisMod": {
@@ -3744,7 +3692,7 @@
     "description": ""
   },
 "Parts.Vanilla.Worn.Tip": {
-    "message": "You are wearing this and no mod provides it. Open it to refit it onto your body \u2014 that makes a mod of its own for it.",
+    "message": "Надето, но не модифицировано. Откройте, чтобы подогнать под своё тело в новом моде.",
     "description": ""
   },
   "Parts.Vanilla.WornSuffix": {
@@ -3792,31 +3740,31 @@
     "description": ""
   },
   "Parts.Retarget.Guide.Title": {
-    "message": "Body size: несколько советов",
+    "message": "Body size: советы",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip1": {
-    "message": "Апскейл работает лучше всего, если установлено тело, под которое вещь изначально делалась.",
+    "message": "Лучше всего работает, если установлено тело, под которое сделана вещь.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip2": {
-    "message": "Если вещь закрывает больше одной части тела, как платье, выберите исходные и целевые мод тела и размеры для каждой закрытой части.",
+    "message": "Для вещей на несколько частей тела, как платье, задайте размер для каждой части.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip3": {
-    "message": "Если у вещи есть Skindenting, пуш-ап или другая нестандартная форма, снимите флажок \"Use the new body's skin\". Оставьте его, если у двух тел разные скелеты: тогда кожа нового тела обязательна.",
+    "message": "Снимите флажок \"Use the new body's skin\", чтобы сохранить Skindenting или пуш-ап, если скелеты тел совпадают.",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip4": {
-    "message": "Не забудьте сохранить после предпросмотра. Предпросмотр не сохраняется, пока вы не нажмёте \"Save as a new option\".",
+    "message": "Предпросмотр не сохраняется, пока не нажата \"Save as a new option\".",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip5": {
-    "message": "Детали после изменения размера можно доработать другими кистями Студии, например «Вытянуть». Для жёстких элементов используйте «Перемещение».",
+    "message": "Затем доработайте другими кистями, например «Вытянуть». Для жёстких деталей — «Перемещение».",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip6": {
-    "message": "По возможности начинайте с размера меньше того, на который подгоняете.",
+    "message": "По возможности подгоняйте с меньшего размера на больший.",
     "description": ""
   },
   "Parts.Retarget.Guide.Ok": {
