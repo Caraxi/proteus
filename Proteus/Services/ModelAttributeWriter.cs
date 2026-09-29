@@ -171,6 +171,59 @@ public static class ModelAttributeWriter
     }
 
     /// <summary>
+    /// Rename a material: every entry of the material table called <paramref name="from"/> is called
+    /// <paramref name="to"/> afterwards. The model is returned unchanged when it names no such material.
+    /// <para/>
+    /// The name is rewritten where it sits in the string block, so the block keeps its grouping (see
+    /// <see cref="AddAttribute"/>) and every name after it moves by the difference in length — in every table that
+    /// points into the block, element ids' parent bones included.
+    /// </summary>
+    public static byte[] RenameMaterial(byte[] mdl, string from, string to)
+    {
+        if (string.Equals(from, to, StringComparison.Ordinal)) return mdl;
+        var src = SecondSkinWriter.Parse(mdl);
+        int mat = src.MatNames.IndexOf(from);
+        if (mat < 0) return mdl;
+
+        uint off = BitConverter.ToUInt32(mdl, src.MatOffStart + mat * 4);
+        int oldLen = Encoding.ASCII.GetByteCount(from), newLen = Encoding.ASCII.GetByteCount(to);
+        int d = newLen - oldLen;
+
+        // The block with the name replaced, then padded back to four bytes at its END — see AddAttribute.
+        var block = new List<byte>(mdl.AsSpan(src.StrBlock, (int)src.StrSize).ToArray());
+        block.RemoveRange((int)off, oldLen);
+        block.InsertRange((int)off, Encoding.ASCII.GetBytes(to));
+        while (block.Count % 4 != 0) block.Add(0);
+        int grow = block.Count - (int)src.StrSize;
+
+        var o = new byte[mdl.Length + grow];
+        Array.Copy(mdl, 0, o, 0, src.StrBlock);
+        block.CopyTo(o, src.StrBlock);
+        int after = src.StrBlock + (int)src.StrSize;
+        Array.Copy(mdl, after, o, after + grow, mdl.Length - after);
+
+        W32(o, src.DeclEnd + 4, (uint)block.Count);   // string block size; the count of strings is unchanged
+        int mh = src.Mh + grow;
+
+        // Every name past the renamed one moved by the difference; the renamed one itself stays where it was.
+        void Move(int at)
+        {
+            uint v = BitConverter.ToUInt32(o, at);
+            if (v > off) W32(o, at, (uint)((int)v + d));
+        }
+        for (int i = 0; i < src.AttrNames.Length; i++) Move(src.AttrStart + grow + i * 4);
+        for (int i = 0; i < src.MatCount; i++) Move(src.MatOffStart + grow + i * 4);
+        for (int i = 0; i < src.BoneCount; i++) Move(src.MatOffStart + grow + src.MatCount * 4 + i * 4);
+        int shapes = BitConverter.ToUInt16(o, mh + 16);
+        for (int i = 0; i < shapes; i++) Move(src.ShapeBlock + grow + i * 16);
+        int elements = BitConverter.ToUInt16(o, mh + 24);
+        for (int i = 0; i < elements; i++) Move(mh + 56 + i * 32 + 4);   // ElementId.ParentBoneName
+
+        if (grow != 0) Shift(o, src.LodStart + grow, grow);
+        return o;
+    }
+
+    /// <summary>
     /// Add <paramref name="by"/> to every entry of a name-offset table that points at or past
     /// <paramref name="from"/> — the names a mid-block insert pushed along.
     /// </summary>

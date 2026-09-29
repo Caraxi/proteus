@@ -125,7 +125,12 @@ internal static class MeshVolumeService
     /// The edit itself, on bytes alone — no mod folder, no record. Separate so it can be tested against a
     /// model without a folder on disk around it.
     /// </summary>
-    internal static Written Inflate(byte[] mdl, IMeshEdit solve)
+    /// <param name="carrySpares">
+    /// Move each shape key's spare vertices by their BASE vertex's delta (see <see cref="CarrySpares"/>). False moves
+    /// every vertex by its own delta, spares included — right for an edit that is a function of each vertex's own
+    /// weights, as the racial bend is: the game skins a spare with its own weights too.
+    /// </param>
+    internal static Written Inflate(byte[] mdl, IMeshEdit solve, bool carrySpares = true)
     {
         SecondSkinWriter.Source src;
         try { src = SecondSkinWriter.Parse(mdl); }
@@ -159,7 +164,7 @@ internal static class MeshVolumeService
         // pose, which may coincide with a node the brush moved, giving it a displacement that has nothing to
         // do with the vertex it stands in for. And where a model names the same vertex as both a base and a
         // replacement, the two passes would each add the delta, moving it twice as far as anything around it.
-        var spares = SpareVertices(mdl, src);
+        var spares = carrySpares ? SpareVertices(mdl, src) : [];
 
         foreach (var span in solve.Spans)
         {
@@ -185,7 +190,7 @@ internal static class MeshVolumeService
             WriteSpan(o, src, mo, span, pe, nrmEl, solve, spares);
         }
 
-        int unmapped = CarrySpares(o, mdl, src, spanOf, solve);
+        int unmapped = carrySpares ? CarrySpares(o, mdl, src, spanOf, solve) : 0;
         GrowExtents(o, src, solve.Worst);
 
         // WIND LAST, because adding the channel changes the file's length and every in-place write above

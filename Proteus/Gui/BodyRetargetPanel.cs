@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 using Dalamud.Bindings.ImGui;
@@ -58,12 +59,16 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
     /// </param>
     /// <param name="KeepShape">Labels of the parts marked "keep shape": each piece of them moves whole, turned and
     /// shifted onto the new body but never bent — see <see cref="ShapePieces"/>.</param>
+    /// <param name="Wearer">The character the garment is on, for baking a model of their race when it is drawn from
+    /// another's (<see cref="RacialModelBake"/>). Null, or answering null, when there is no character to read.
+    /// Framework thread.</param>
     internal readonly record struct RetargetContext(
         string? ModRoot, string? ModDir, string ModelRel, string GamePath, string ModelLabel,
         ModelParts Garment, byte[] GarmentBytes, IReadOnlyList<PenumbraModMeta.Redirect> Redirects,
         Action FlushPending, Func<byte[], bool> PushPreview, Action EndPreview,
         Action<string, bool> SetStatus, Action<string?, Action<string>?> AfterModChange, IReadOnlyCollection<string> Held,
-        Func<string, bool, (string Root, string Dir)?>? SaveMod = null, IReadOnlyCollection<string>? KeepShape = null)
+        Func<string, bool, (string Root, string Dir)?>? SaveMod = null, IReadOnlyCollection<string>? KeepShape = null,
+        Func<RacialModelBake.Wearer?>? Wearer = null)
     {
         /// <summary>
         /// The garment is the game's own: no mod holds it, and none holds the refit either until
@@ -280,11 +285,21 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         config.Save();
     }
 
-    public void Draw(in RetargetContext ctx)
+    public void Draw(in RetargetContext given)
     {
         var ps = Strings.Parts;
-        race = BodySizeCatalog.RaceOf(ctx.GamePath);
+
+        // A garment drawn from another race's model is refitted as a model of the wearer's own, made first. Until it
+        // is, nothing below can be offered: every size list is filtered by the race it will have.
+        var ctx = Effective(given, out bool baking);
+        if (baking)
+        {
+            ImGui.TextDisabled(ps.RetargetBaking);
+            return;
+        }
+        OnRaceChanged(ctx);
         Consume(ctx);
+        DrawBakeNote();
 
         // Gear the game ships is fitted to the game's body, so that is the "made for" side — chosen here rather than
         // left to the user, who would otherwise have to know that and find it in a list of their body mods. Once, and
@@ -392,6 +407,220 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         ImGui.Separator();
         DrawActions(ctx);
         DrawSaved(ctx);
+    }
+
+    // ── a garment drawn from another race's model ───────────────────────────
+
+    /// <summary>
+    /// A model baked for the wearer's race from the one the game draws (see <see cref="RacialModelBake"/>).
+    /// </summary>
+    /// <param name="Source">The garment bytes it was baked from. A brush stroke replaces them, and the bake with them.</param>
+    /// <param name="SavePath">Where a refit of it is saved: the drawn path with the wearer's race in it.</param>
+    private sealed record Baked(string Key, byte[] Source, ushort From, ushort To, byte[] Model, ModelParts Parts,
+                                string SavePath, RacialModelBake.Wearer Wearer);
+
+    /// <summary>The last bake made, whether or not it applies to what is open now — see <see cref="active"/>.</summary>
+    private Baked? baked;
+
+    /// <summary>The bake this frame's garment is refitted from, or null when it is refitted as drawn.</summary>
+    private Baked? active;
+
+    private Task<(string Key, Baked? Baked, string Refusal)>? bakeTask;
+
+    /// <summary>Why the bake for <see cref="bakeRefusalFor"/> could not be made. That garment is then refitted as drawn.</summary>
+    private string bakeRefusal = "";
+    private string? bakeRefusalFor;
+
+    /// <summary>The race the open garment could not be baked to this frame, or 0.</summary>
+    private ushort refusedTo;
+
+    /// <summary>The character, read once per garment — the skeleton does not change while one is open.</summary>
+    private RacialModelBake.Wearer? wearer;
+    private string? wearerFor;
+
+    /// <summary>The race every list was last filtered by, so a change can clear what was chosen for the old one.</summary>
+    private string? raceFor;
+
+    /// <summary>
+    /// Each refitted model as the preview puts it on the character: bent back into the drawn race's shape, which the game
+    /// then bends forward again. Made on the planning worker; keyed by the model's own array, so it goes with the plan.
+    /// </summary>
+    private readonly ConditionalWeakTable<byte[], byte[]> previews = new();
+
+    /// <summary>
+    /// The garment's mod's retarget record, re-read whenever the tab hands over a new redirect list — which it does after
+    /// every mod change, a save of ours included. Separate from <see cref="record"/>, which follows the mod refits are
+    /// saved INTO and is read after the bake is decided.
+    /// </summary>
+    private BodyRetargetWriter.Record? ownRecord;
+    private object? ownRecordFor;
+
+    /// <summary>The races the refit-onto body mod has bodies of, and the catalog they were read off.</summary>
+    private HashSet<string> catalogRaces = [];
+    private BodySizeCatalog? catalogRacesOf;
+
+    /// <summary>
+    /// The context everything else is drawn from: the garment as given, or — when it is drawn from another race's model
+    /// — the baked model in its place. Sets <see cref="race"/>. <paramref name="baking"/> says the bake is still being
+    /// made, and nothing can be offered yet.
+    /// </summary>
+    private RetargetContext Effective(in RetargetContext given, out bool baking)
+    {
+        baking = false;
+        active = null;
+        refusedTo = 0;
+        ConsumeBake();
+
+        // Retried each frame while there is no character to read, which is the only time it answers null.
+        if (wearerFor != given.ModelRel || wearer == null)
+        {
+            wearerFor = given.ModelRel;
+            wearer = given.Wearer?.Invoke();
+        }
+
+        ushort drawn = ModelSkinReader.RaceOf(given.GamePath);
+        ushort target = wearer == null ? (ushort)0 : RacialModelBake.Target(drawn, wearer.Race, HasBodies);
+
+        // Never over a model the mod already has for that race: an author who ships both a man's and a woman's model
+        // made the woman's on purpose, and a bake of the man's saved at her path would take its place in the option.
+        // A size this tool saved there is not the author's, or the first save would switch the bake off for the next.
+        if (target != 0 && given.ModRoot != null)
+        {
+            if (!ReferenceEquals(ownRecordFor, given.Redirects))
+            {
+                ownRecordFor = given.Redirects;
+                ownRecord = BodyRetargetWriter.ReadRecord(given.ModRoot);
+            }
+            if (BodyRetargetWriter.AuthorProvides(given.Redirects, ownRecord,
+                                                  RacialModelBake.WithRace(given.GamePath, target)))
+                target = 0;
+        }
+        string key = given.ModelRel + "|" + target;
+        if (target == 0 || bakeRefusalFor == key)
+        {
+            if (target != 0) refusedTo = target;
+            race = BodySizeCatalog.RaceOf(given.GamePath);
+            return given;
+        }
+
+        race = $"{target:D4}";
+        if (baked is { } b && b.Key == key && ReferenceEquals(b.Source, given.GarmentBytes))
+        {
+            active = b;
+            var push = given.PushPreview;
+            return given with
+            {
+                Garment = b.Parts,
+                GarmentBytes = b.Model,
+                PushPreview = model => push(PreviewOf(model, b)),
+            };
+        }
+
+        if (bakeTask == null) StartBake(given, drawn, target, key, wearer!);
+        baking = true;
+        return given;
+    }
+
+    /// <summary>Whether the refit-onto body mod has bodies of exactly <paramref name="code"/>'s race.</summary>
+    private bool HasBodies(ushort code)
+    {
+        if (!ReferenceEquals(catalogRacesOf, catalog))
+        {
+            catalogRacesOf = catalog;
+            catalogRaces = (catalog?.Options ?? []).Select(o => BodySizeCatalog.RaceOf(o.GamePath))
+                                                   .OfType<string>().ToHashSet(StringComparer.Ordinal);
+        }
+        return catalogRaces.Contains($"{code:D4}");
+    }
+
+    private void StartBake(in RetargetContext given, ushort drawn, ushort target, string key, RacialModelBake.Wearer who)
+    {
+        var bytes = given.GarmentBytes;
+        string savePath = RacialModelBake.WithRace(given.GamePath, target);
+        bakeTask = Task.Run(() =>
+        {
+            var model = RacialModelBake.Bake(bytes, drawn, target, who.Pbd, who.ParentOf, out string why);
+            if (model == null) return (key, (Baked?)null, why);
+            if (ModelPartReader.Read(model) is not { } parts) return (key, null, "the new model could not be read back");
+            return (key, new Baked(key, bytes, drawn, target, model, parts, savePath, who), "");
+        });
+    }
+
+    private void ConsumeBake()
+    {
+        if (bakeTask is not { IsCompleted: true } task) return;
+        bakeTask = null;
+
+        if (!task.IsCompletedSuccessfully)
+        {
+            log.Warning(task.Exception, "[Proteus] retarget: baking a race's model failed");
+            return;   // tried again next frame; a fault is not a verdict on the model
+        }
+        var (key, made, refusal) = task.Result;
+        if (made != null)
+        {
+            baked = made;
+            log.Information("[Proteus] retarget: baked {0} from c{1:D4} to c{2:D4}", made.SavePath, made.From, made.To);
+        }
+        else
+        {
+            bakeRefusal = refusal;
+            bakeRefusalFor = key;
+            log.Warning("[Proteus] retarget: could not bake {0}: {1}", key, refusal);
+        }
+    }
+
+    /// <summary>
+    /// What to put on the character for <paramref name="model"/>: bent back to the drawn race when it was refitted from a
+    /// bake. The planning worker has usually made it already; otherwise it is made here, once.
+    /// </summary>
+    private byte[] PreviewOf(byte[] model, Baked from)
+    {
+        if (previews.TryGetValue(model, out var ready)) return ready;
+        var back = RacialModelBake.Unbake(model, from.From, from.To, from.Wearer.Pbd, from.Wearer.ParentOf, out string why);
+        if (back == null)
+        {
+            // Shown as is it would be bent twice, but a preview that goes up beats one that silently never does.
+            log.Warning("[Proteus] retarget: preview could not be bent back to c{0:D4}: {1}", from.From, why);
+            return model;
+        }
+        previews.AddOrUpdate(model, back);
+        return back;
+    }
+
+    /// <summary>
+    /// The race changed under an open garment — a bake landed on another race than before, or the character changed.
+    /// Every size chosen was chosen from lists of the old race's bodies, and the game's own body is another file.
+    /// </summary>
+    private void OnRaceChanged(in RetargetContext ctx)
+    {
+        if (race == raceFor) return;
+        if (raceFor != null)
+        {
+            if (planned != null) ctx.EndPreview();
+            Clear();
+        }
+        raceFor = race;
+        if (fromBodyDir == VanillaBodyCatalog.Key) fromCatalog = LoadSource(fromBodyDir);
+    }
+
+    /// <summary>Say that the garment is being refitted from a model made for the wearer — or why it could not be.</summary>
+    private void DrawBakeNote()
+    {
+        var ps = Strings.Parts;
+        if (active is { } b)
+        {
+            ImGui.TextWrapped(string.Format(ps.RetargetBakedFmt, ModelRace.Describe($"{b.From:D4}"),
+                                            ModelRace.Describe($"{b.To:D4}")));
+            ImGui.Spacing();
+        }
+        else if (refusedTo != 0)
+        {
+            using (ImRaii.PushColor(ImGuiCol.Text, ProteusStyle.Warn))
+                ImGui.TextWrapped(string.Format(ps.RetargetBakeFailedFmt, ModelRace.Describe($"{refusedTo:D4}"),
+                                                bakeRefusal, ModelRace.Describe(race)));
+            ImGui.Spacing();
+        }
     }
 
     // ── the body mod ────────────────────────────────────────────────────────
@@ -1119,7 +1348,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         // more choice beside the others, and there is nothing to outrank.
         string destination = Destination();
         if (saveTo == null || own.Contains(destination))
-            foreach (string clash in BodyRetargetWriter.ClashingGroups(ctx.Redirects, ctx.GamePath, destination))
+            foreach (string clash in BodyRetargetWriter.ClashingGroups(ctx.Redirects, SavePath(ctx), destination))
                 using (ImRaii.PushColor(ImGuiCol.Text, ProteusStyle.Warn))
                     ImGui.TextWrapped(string.Format(ps.RetargetClashFmt, clash));
     }
@@ -1168,6 +1397,9 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
 
     /// <summary>The group the save writes to.</summary>
     private string Destination() => saveTo ?? groupName.Trim();
+
+    /// <summary>The game path a refit is saved under: the drawn one, or for a bake the same with the wearer's race.</summary>
+    private string SavePath(in RetargetContext ctx) => active?.SavePath ?? ctx.GamePath;
 
     /// <summary>
     /// The author's single-choice group that already switches this model — the size group a new size belongs in — or
@@ -1325,6 +1557,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         bool acrossBodies = fromBodyDir != null;
         bool male = MaleGarment;
         string key = Key(ctx);
+        var bake = active;
         planDone = 0;
         planTotal = targets.Count;
 
@@ -1357,9 +1590,31 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
 
                     var pairs = new List<BodyRetarget.SlotPair> { pair };
                     pairs.AddRange(shared);
-                    results.Add((option, BodyRetarget.Plan(garment, bytes, pairs, garmentSlot, held: held,
-                                                           replaceSkin: layOnBody, acrossBodies: acrossBodies,
-                                                           clearBody: clear, cutHidden: cut, keepShape: pieces)));
+                    var plan = BodyRetarget.Plan(garment, bytes, pairs, garmentSlot, held: held,
+                                                 replaceSkin: layOnBody, acrossBodies: acrossBodies,
+                                                 clearBody: clear, cutHidden: cut, keepShape: pieces);
+
+                    if (bake != null)
+                    {
+                        // Its preview, here rather than on the framework thread when it is first shown — and from the
+                        // model BEFORE the rename below: the preview goes on the drawn race's path, and a skin material
+                        // is named after the path's race, so there the garment's own material is the one that loads.
+                        var back = RacialModelBake.Unbake(plan.Model, bake.From, bake.To, bake.Wearer.Pbd,
+                                                          bake.Wearer.ParentOf, out _);
+
+                        // A bake names its skin after the new race, where the old race's material may not exist: the
+                        // skin the refit kept of the garment's own is drawn with the body's, or the model is not drawn.
+                        var model = RacialModelBake.SkinLikeBody(plan.Model, File.ReadAllBytes(targetPath),
+                                                                 out var renamed);
+                        if (renamed.Count > 0)
+                        {
+                            log.Information("[Proteus] retarget: baked garment's own skin {0} drawn with the body's",
+                                            string.Join(", ", renamed));
+                            plan = plan with { Model = model };
+                        }
+                        if (back != null) previews.AddOrUpdate(plan.Model, back);
+                    }
+                    results.Add((option, plan));
                     Interlocked.Increment(ref planDone);
                 }
                 return new PlanResult(key, results, "");
@@ -1481,7 +1736,12 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
             madeModFor = null;   // it exists now, and the lookup above was told it did not
         }
         string group = Destination();
-        string path = ctx.GamePath;
+        // A bake is saved under the wearer's race, beside the drawn model rather than over it — which men, and every
+        // other race falling through to it, go on wearing — with the EQDP entry that makes the game load it.
+        string path = SavePath(ctx);
+        List<object>? manipulations = active is { } bake && RacialModelBake.Switch(path, bake.To) is { } eqdp
+            ? [eqdp]
+            : null;
         string body = bodyDir ?? "";
         var slots = Chosen(ctx);
         string labelFrom = string.Join(" + ", slots.Select(s => from[s].Label));
@@ -1508,7 +1768,7 @@ internal sealed class BodyRetargetPanel(PenumbraBridge penumbra, UVRemapService 
         string at = root;
         string? cutFrom = BodyRetargetWriter.OptionOfFile(ctx.Redirects, ctx.ModelRel, group);
         saveTask = Task.Run(() => new SaveResult(
-            BodyRetargetWriter.Save(at, group, path, body, labelFrom, refits, cutFrom),
+            BodyRetargetWriter.Save(at, group, path, body, labelFrom, refits, cutFrom, manipulations),
             BodyRetargetWriter.ReadRecord(at)));
     }
 

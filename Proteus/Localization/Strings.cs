@@ -2512,6 +2512,16 @@ public sealed class PartsStrings
     public readonly string RetargetFindingBodies = Loc.Localize("Parts.Retarget.FindingBodies",
         "Looking through your mods for body mods…");
 
+    public readonly string RetargetBaking = Loc.Localize("Parts.Retarget.Baking",
+        "Making a model of this item for your character's race…");
+
+    public readonly string RetargetBakedFmt = Loc.Localize("Parts.Retarget.Baked.Fmt",
+        "The game has no {1} model of this item and stretches the {0} one onto you. Body size made a {1} model from it " +
+        "first, the way TexTools does, and resizes that. Saving adds the metadata that makes the game load it.");
+
+    public readonly string RetargetBakeFailedFmt = Loc.Localize("Parts.Retarget.BakeFailed.Fmt",
+        "Could not make a {0} model of this item ({1}), so it is refitted as the {2} model it is.");
+
     public readonly string RetargetCheckingPair = Loc.Localize("Parts.Retarget.CheckingPair",
         "Checking these two are sizes of the same body…");
 

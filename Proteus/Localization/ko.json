@@ -3443,6 +3443,18 @@
     "message": "Looking through your mods for body mods\u2026",
     "description": ""
   },
+  "Parts.Retarget.Baking": {
+    "message": "Making a model of this item for your character\u0027s race\u2026",
+    "description": ""
+  },
+  "Parts.Retarget.Baked.Fmt": {
+    "message": "The game has no {1} model of this item and stretches the {0} one onto you. Body size made a {1} model from it first, the way TexTools does, and resizes that. Saving adds the metadata that makes the game load it.",
+    "description": ""
+  },
+  "Parts.Retarget.BakeFailed.Fmt": {
+    "message": "Could not make a {0} model of this item ({1}), so it is refitted as the {2} model it is.",
+    "description": ""
+  },
   "Parts.Retarget.Cloth.Guess.Fmt": {
     "message": "Best guess from how the cloth sits: it fits {0} most snugly, but clears every size here, so it may simply be loose. Worth checking.",
     "description": ""

@@ -2635,7 +2635,27 @@ public sealed class PartsPanel
             },
             Held: RetargetHolds,
             SaveMod: (bodyName, create) => RefitModFor(bodyName, create),
-            KeepShape: RetargetShapes));
+            KeepShape: RetargetShapes,
+            Wearer: RetargetWearer));
+    }
+
+    /// <summary>The racial deformer, read once — the live brush reads its own the same way.</summary>
+    private XivLiveMesh.PbdFile? retargetPbd;
+    private bool retargetPbdTried;
+
+    /// <summary>
+    /// The character a garment is refitted for, for Body size to bake a model of their race from one drawn from
+    /// another's. Null while there is no skeleton or no deformer to read.
+    /// </summary>
+    private RacialModelBake.Wearer? RetargetWearer()
+    {
+        if (LiveCharacter.PlayerSkeleton(Plugin.ObjectTable) is not { } skeleton) return null;
+        if (!retargetPbdTried)
+        {
+            retargetPbdTried = true;
+            retargetPbd = LiveCharacter.LoadPbd(penumbra, Plugin.DataManager, log);
+        }
+        return retargetPbd == null ? null : new RacialModelBake.Wearer(skeleton.GenderRace, skeleton.Parents, retargetPbd);
     }
 
     /// <summary>
