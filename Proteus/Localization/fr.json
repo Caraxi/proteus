@@ -999,6 +999,10 @@
     "message": "Ce pack active et désactive ses propres pièces ; Proteus n'ajoute donc aucune case à cocher — utilisez celles du pack. Toute pièce qu'il ne commute pas est portée dès que le mod est activé.",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "S’applique aussi à ce corps sur toutes les autres races ({0} matériaux).",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "Auteur",
     "description": ""

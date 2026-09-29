@@ -999,6 +999,10 @@
     "message": "This pack switches its own pieces on and off, so Proteus adds no checkboxes of its own — use the pack's. Any piece it does not switch is worn whenever the mod is enabled.",
     "description": "Import preview note for a pack that toggles its own pieces by model attribute, so Proteus adds no per-piece checkboxes of its own."
   },
+  "Create.AllRaces.Fmt": {
+    "message": "Also applies to this body on every other race ({0} materials).",
+    "description": "Note under the Create tab's material target when a body skin is picked. {0} is the number of body materials the overlay will list."
+  },
   "Create.Author.Label": {
     "message": "Author",
     "description": "Control label. Appears in the Create tab."

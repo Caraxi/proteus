@@ -525,6 +525,9 @@ public sealed class CreateStrings
         "currently wearing; pick one you have equipped from the list, or type a path by hand to\n" +
         "target a body/race you aren't wearing right now.");
 
+    public readonly string AllRacesFmt = Loc.Localize("Create.AllRaces.Fmt",
+        "Also applies to this body on every other race ({0} materials).");
+
     public readonly string PickerStale =
         Loc.Localize("Create.Picker.Stale", "Showing the last known list — character isn't drawn.");
 

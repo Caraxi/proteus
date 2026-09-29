@@ -25,7 +25,7 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService] public static ITextureProvider TextureProvider { get; private set; } = null!;
 
     /// <summary>Hand-maintained; bump it for in-game testing. <see cref="BuildStamp"/> is the one that can't go stale.</summary>
-    public const int BuildNumber = 1089;
+    public const int BuildNumber = 1091;
 
     /// <summary>
     /// Which set of release notes is current. Raise it when a release has something new to say: the window
@@ -188,9 +188,9 @@ public sealed class Plugin : IDalamudPlugin
             Ghost = shellGhost,
         };
 
-        var modCreation = new ModCreationService(penumbra, compositor, config, textureLoader, log);
-        // Body catalogue for imports: probes the game data for the human bodies that exist.
+        // Body catalogue for imports and the Create tab: probes the game data for the human bodies that exist.
         var bodyCatalog = new BodyMaterialCatalog(DataManager.FileExists);
+        var modCreation = new ModCreationService(penumbra, compositor, config, textureLoader, bodyCatalog, log);
         var onionImport = new OnionImportService(
             penumbra, compositor, modCreation, textureLoader, bodyCatalog, config, log);
         var contentImport = new ContentImportService(penumbra, compositor, log);

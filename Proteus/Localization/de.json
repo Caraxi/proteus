@@ -999,6 +999,10 @@
     "message": "Dieses Paket schaltet seine Teile selbst ein und aus, daher fügt Proteus keine eigenen Kontrollkästchen hinzu — nutze die des Pakets. Jedes Teil, das es nicht schaltet, wird getragen, solange die Mod aktiv ist.",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "Gilt auch für diesen Körper bei allen anderen Völkern ({0} Materialien).",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "Autor",
     "description": ""

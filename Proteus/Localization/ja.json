@@ -999,6 +999,10 @@
     "message": "このパックは自前でパーツの表示を切り替えるため、Proteus は独自のチェックボックスを追加しません。パック側の設定をご利用ください。パックが切り替えないパーツは、Mod が有効な間つねに装着されます。",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "他のすべての種族のこのボディにも適用されます（{0} 個のマテリアル）。",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "作者",
     "description": ""

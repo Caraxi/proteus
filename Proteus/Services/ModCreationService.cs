@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using CheapLoc;
 using Dalamud.Plugin.Services;
 using Penumbra.Api.Enums;
@@ -43,6 +44,7 @@ public sealed class ModCreationService
     private readonly CompositorService compositor;
     private readonly Configuration config;
     private readonly TextureLoader textureLoader;
+    private readonly BodyMaterialCatalog bodies;
     private readonly IPluginLog log;
 
     /// <summary>Common target when nothing is detected: the Bibo+ Midlander female body skin material.</summary>
@@ -57,16 +59,64 @@ public sealed class ModCreationService
         "chara/monster/m8030/obj/body/b0001/material/v0001/mt_m8030b0001_a.mtrl";
 
     public ModCreationService(PenumbraBridge penumbra, CompositorService compositor, Configuration config,
-        TextureLoader textureLoader, IPluginLog log)
+        TextureLoader textureLoader, BodyMaterialCatalog bodies, IPluginLog log)
     {
         this.penumbra = penumbra;
         this.compositor = compositor;
         this.config = config;
         this.textureLoader = textureLoader;
+        this.bodies = bodies;
         this.log = log;
     }
 
     public readonly record struct CreateResult(bool Ok, string Message);
+
+    /// <summary>
+    /// A body skin material at the shared layout every race's body uses (<c>…/obj/body/bNNNN/…/mt_cNNNNbNNNN_bibo.mtrl</c>);
+    /// the suffix names the body type, so the same suffix on another race's stem is the same art layout.
+    /// </summary>
+    private static readonly Regex BodySkinMaterial = new(
+        // [0-9], not \d: \d takes any Unicode digit, which int.Parse then rejects.
+        @"^chara/human/c(?<race>[0-9]{2})[0-9]{2}/obj/body/b[0-9]{4}/material/v0001/mt_c[0-9]{4}b[0-9]{4}(?<suffix>_[a-z0-9_]+\.mtrl)$",
+        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
+
+    /// <summary>
+    /// Every material a Create-tab overlay targets: a body skin material expands to that body type on every other
+    /// race sharing its skin layout, so the mod follows the player through a race change; anything else stays as picked.
+    /// </summary>
+    public IReadOnlyList<string> MaterialTargetsFor(string materialTarget)
+        => ExpandToAllRaces(materialTarget, bodies.ForSuffix);
+
+    /// <summary>
+    /// <see cref="MaterialTargetsFor"/> with the catalogue passed in, so it can be exercised offline. The picked path
+    /// always comes first, and only races in its <see cref="SkinLayoutGroup"/> are added.
+    /// </summary>
+    internal static IReadOnlyList<string> ExpandToAllRaces(string materialTarget, Func<string, IReadOnlyList<string>> forSuffix)
+    {
+        var picked = BodySkinMaterial.Match(materialTarget);
+        if (!picked.Success || SkinLayoutGroup(picked.Groups["race"].Value) is not { } group) return [materialTarget];
+
+        var all = new List<string> { materialTarget };
+        foreach (var path in forSuffix(picked.Groups["suffix"].Value))
+        {
+            var m = BodySkinMaterial.Match(path);
+            if (!m.Success || SkinLayoutGroup(m.Groups["race"].Value) != group) continue;
+            if (!all.Contains(path, StringComparer.OrdinalIgnoreCase)) all.Add(path);
+        }
+        return all;
+    }
+
+    /// <summary>
+    /// Which races' bodies share a skin UV layout, by the race code's first two digits: every female body shares one
+    /// (Hrothgar included), every male body another. Null for a body with its own layout that shares with no one:
+    /// Lalafell of either sex (11, 12) and male Hrothgar (15).
+    /// </summary>
+    private static char? SkinLayoutGroup(string race) => int.Parse(race) switch
+    {
+        11 or 12 or 15 => null,
+        var r when r % 2 == 0 => 'F',
+        _ => 'M',
+    };
 
     /// <summary>
     /// The player's currently-loaded body skin material, or null when nothing is detected (player not drawn yet).
@@ -468,7 +518,7 @@ public sealed class ModCreationService
 
         try
         {
-            WriteMod(root, modName, author, materialTarget, diffuseSrc, maskSrc, normalSrc, indexSrc, wholeSkin,
+            WriteMod(root, modName, author, MaterialTargetsFor(materialTarget), diffuseSrc, maskSrc, normalSrc, indexSrc, wholeSkin,
                      faceSplit, glow, scrollRgba, scrollW, scrollH, artColour);
         }
         catch (Exception ex)
@@ -578,8 +628,9 @@ public sealed class ModCreationService
     /// The already-built scroll map for <see cref="GlowStyle.DarkOnly"/>, at <paramref name="scrollW"/> ×
     /// <paramref name="scrollH"/>. Null for every other style; a null one under DarkOnly leaves the effect unwritten.
     /// </param>
+    /// <param name="materialTargets">Every material the overlay applies to; see <see cref="MaterialTargetsFor"/>.</param>
     internal static void WriteMod(
-        string root, string modName, string author, string materialTarget,
+        string root, string modName, string author, IReadOnlyList<string> materialTargets,
         string? diffuseSrc, string? maskSrc, string? normalSrc, string? indexSrc,
         bool wholeSkin = false, bool faceSplit = false, GlowStyle glow = GlowStyle.None,
         byte[]? scrollRgba = null, int scrollW = 0, int scrollH = 0, string? artColour = null)
@@ -628,7 +679,7 @@ public sealed class ModCreationService
             ScrollSpeedY  = scrollFile == null ? null : 0f,
             ScrollTilingX = scrollFile == null ? null : 1f,
             ScrollTilingY = scrollFile == null ? null : 1f,
-            MaterialGamePaths = [materialTarget],
+            MaterialGamePaths = [.. materialTargets],
             Diffuse = Copy("diffuse", diffuseSrc),
             Mask = Copy("mask", maskSrc),
             Normal = Copy("normal", normalSrc),

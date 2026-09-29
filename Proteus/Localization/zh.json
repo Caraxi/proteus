@@ -999,6 +999,10 @@
     "message": "该整合包自行控制各部件的显隐，因此 Proteus 不会另外添加复选框——请使用整合包自带的选项。它未加控制的部件，只要模组启用就会一直穿戴。",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "同样应用于其他所有种族的此身体（{0} 个材质）。",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "作者",
     "description": ""

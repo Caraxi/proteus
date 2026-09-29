@@ -58,6 +58,8 @@ internal sealed class CreateTab
     private string _createSlotsFor = "";    // the material _createSlots was resolved for
     // Throttle, not a debounce: caps .mtrl re-reads while typing; programmatic changes bypass it.
     private long _createSlotsNextTick;
+    // How many materials the target expands to across races; recomputed with the slots, not per frame.
+    private int _createRaceCount = 1;
 
     /// <summary>Author a basic skin-overlay mod: name + author + up to three textures → a new Penumbra mod.</summary>
     internal void DrawCreateTab()
@@ -175,6 +177,9 @@ internal sealed class CreateTab
             else if (Environment.TickCount64 >= _createSlotsNextTick) ResolveCreateSlots();
         }
         else _createSlotsNextTick = 0;
+
+        if (_createRaceCount > 1 && _createSlotsFor == _createMaterial)
+            ImGui.TextDisabled(string.Format(cs.AllRacesFmt, _createRaceCount));
 
         ImGui.Spacing();
         // One label column for all four rows, widened for the widest translated label; measured per frame as font, scale and language can change.
@@ -378,6 +383,7 @@ internal sealed class CreateTab
     {
         _createSlotsFor = _createMaterial;
         _createSlotsNextTick = 0;
+        _createRaceCount = modCreation.MaterialTargetsFor(_createMaterial.Trim()).Count;
         var slots = modCreation.ResolveMaterialSlots(_createMaterial);
         // All-null means UNREADABLE, not "has no textures" — keep null so every row stays live.
         _createSlots = slots.Diffuse == null && slots.Normal == null

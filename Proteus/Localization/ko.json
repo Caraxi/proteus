@@ -999,6 +999,10 @@
     "message": "이 팩은 자체적으로 부품을 켜고 끄므로 Proteus는 별도의 체크박스를 추가하지 않습니다. 팩의 옵션을 사용하세요. 팩이 전환하지 않는 부품은 모드가 활성화된 동안 항상 착용됩니다.",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "다른 모든 종족의 이 바디에도 적용됩니다 (머티리얼 {0}개).",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "제작자",
     "description": ""

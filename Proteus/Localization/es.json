@@ -999,6 +999,10 @@
     "message": "Este paquete activa y desactiva sus propias piezas, así que Proteus no añade casillas propias: usa las del paquete. Cualquier pieza que no controle se lleva siempre que el mod esté activado.",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "También se aplica a este cuerpo en todas las demás razas ({0} materiales).",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "Autor",
     "description": ""
