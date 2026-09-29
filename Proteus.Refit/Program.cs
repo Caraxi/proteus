@@ -38,6 +38,7 @@ internal static class Program
                       [--slot _top] [--race 0201] [--legs-from <rel>]
                       [--legs <label>=<size word>,... | --legs-to <rel in the target mod>]
         Proteus.Refit --list --body-root <body mod> [--slot _top]
+        Proteus.Refit --detect --garment <xs.mdl> --body-root <body mod> [--slot _top] [--race 0201]
         """;
 
     private static int Main(string[] args)
@@ -49,6 +50,7 @@ internal static class Program
         {
             var opts = Parse(args);
             if (opts.ContainsKey("list")) return List(opts);
+            if (opts.ContainsKey("detect")) return Detect(opts);
             return Run(opts);
         }
         catch (UsageException ex)
@@ -71,6 +73,26 @@ internal static class Program
         foreach (string slot in slots)
             foreach (var option in catalog.For(slot))
                 Console.WriteLine($"{slot}\t{option.Rel}\t{option.FullLabel}");
+        return 0;
+    }
+
+    /// <summary>
+    /// Which body option the garment was made on, as JSON, without refitting anything. A packer asks this first
+    /// so it can refit onto the same family's other sizes: a top made on Almond XS belongs on Almond S, not on the
+    /// plain S.
+    /// </summary>
+    private static int Detect(Dictionary<string, string> opts)
+    {
+        string garmentPath = Required(opts, "garment");
+        string slot = opts.GetValueOrDefault("slot", "_top");
+        string? race = opts.GetValueOrDefault("race", "0201");
+        var catalog = BodySizeCatalog.Read(Required(opts, "body-root"));
+        var garmentBytes = File.ReadAllBytes(garmentPath);
+        var garment = ModelPartReader.Read(garmentBytes)
+                   ?? throw new UsageException($"{garmentPath} could not be read as a model.");
+        var from = DetectSource(catalog, slot, garment, garmentBytes, race, out string confidence);
+        Console.WriteLine(JsonSerializer.Serialize(new { from = from.Rel, confidence },
+                                                   new JsonSerializerOptions { WriteIndented = true }));
         return 0;
     }
 
@@ -232,7 +254,7 @@ internal static class Program
             if (!args[i].StartsWith("--", StringComparison.Ordinal))
                 throw new UsageException($"Unexpected argument \"{args[i]}\".");
             string key = args[i][2..];
-            opts[key] = key == "list" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
+            opts[key] = key is "list" or "detect" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
         }
         return opts;
     }
