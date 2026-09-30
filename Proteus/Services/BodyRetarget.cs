@@ -651,6 +651,8 @@ internal static partial class BodyRetarget
         int pushed = 0;
         float worstPush = 0f;
         TargetBody? drawn = null;
+        FaceCheck? faceCheck = null;
+        float[]? pushedBy = null;
         if (pushOut)
         {
             // The skin drawn under the cloth once it is worn, as authored and after the refit: the garment's own body
@@ -675,7 +677,8 @@ internal static partial class BodyRetarget
             foreach (int n in sets.ClothNodes)
                 if (!snapped[n]) pushable.Add(n);
 
-            pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush);
+            pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush, out faceCheck,
+                             out pushedBy);
             drawn = after;
 
             // The push moves points one by one, and bent the pieces straight back: whole again, around where it put them.
@@ -685,6 +688,22 @@ internal static partial class BodyRetarget
         // Last, once nothing else will move: the answer is only worth having if the mesh still reads front-side out.
         // Past the push-out, so whatever unfolding gives up is judged against the skin it would be given up into.
         int folded = Unfold(sets, nodeDelta, snapped, drawn == null ? null : SignedOff(drawn));
+
+        // Skin through the middle of a face, which the push-out's fold guard gave up on: cleared last, after the relax
+        // (which only keeps VERTICES out of the skin), by a pass that turns nothing over, so the fold count above still
+        // stands. Hard pieces stay as they were put. See ClearFaces.
+        if (faceCheck != null && pushedBy != null && !Tuned.NoFaceSettle)
+        {
+            bool[]? stay = null;
+            if (keepShape is { Count: > 0 })
+            {
+                stay = new bool[sets.NodeCount];
+                foreach (var piece in keepShape)
+                    foreach (int v in piece)
+                        if (v >= 0 && v < sets.NodeOf.Length) stay[sets.NodeOf[v]] = true;
+            }
+            pushed += ClearFaces(faceCheck, nodeDelta, pushedBy, ref worstPush, stay);
+        }
 
         // Never write a NaN into the file: one spreads through every smoothing pass it touches, and the model it lands in
         // draws nothing there and threw every frame from the Parts preview. A node with no finite answer stays put.

@@ -167,59 +167,14 @@ internal static partial class BodyRetarget
     /// other push.
     /// </summary>
     /// <returns>Whether any face needed a push.</returns>
-    private static bool SkinThroughFaces(Sets sets, List<int> nodes, TargetBody before, TargetBody after,
-                                         Vec3[] nodeDelta, float[] authored, bool clearBody, float[] need, Vec3[] dir,
-                                         bool[] hasDir)
+    private static bool SkinThroughFaces(FaceCheck check, Vec3[] nodeDelta, float[] need, Vec3[] dir, bool[] hasDir)
     {
-        var considered = new bool[sets.NodeCount];
-        foreach (int n in nodes) considered[n] = true;
-
-        var drawn = Grid(after);
-        var was = Grid(before);
-
-        // Edges two DIFFERENT cloth faces share. A skin point that lands on one is still under the cloth — the cuff's
-        // top edge, where its wall meets its cap — while one landing on an edge only one face uses is past the cloth's
-        // hem, where the body going on wider (a thigh above a stocking) is no clip at all. Faces are counted once per
-        // set of corners: double-sided or lined cloth draws every face twice, and counted twice its hems would all
-        // look shared.
-        var faces = new HashSet<(int, int, int)>();
-        var edgeUses = new Dictionary<(int, int), int>();
-        for (int t = 0; t + 2 < sets.Tris.Length; t += 3)
-        {
-            if (sets.Tris[t] < 0 || sets.Tris[t + 1] < 0 || sets.Tris[t + 2] < 0) continue;
-            if (sets.Tris[t] >= sets.NodeOf.Length || sets.Tris[t + 1] >= sets.NodeOf.Length
-                || sets.Tris[t + 2] >= sets.NodeOf.Length) continue;
-            int x = sets.NodeOf[sets.Tris[t]], y = sets.NodeOf[sets.Tris[t + 1]], z = sets.NodeOf[sets.Tris[t + 2]];
-            if (x == y || y == z || z == x || !faces.Add(FaceKey(x, y, z))) continue;
-            foreach (var key in new[] { EdgeKey(x, y), EdgeKey(y, z), EdgeKey(z, x) })
-                edgeUses[key] = edgeUses.GetValueOrDefault(key) + 1;
-        }
-        bool Shared(int x, int y) => edgeUses.GetValueOrDefault(EdgeKey(x, y)) >= 2;
-
         bool any = false;
-        for (int t = 0; t + 2 < sets.Tris.Length; t += 3)
+        foreach (var face in check.Faces)
         {
-            int va = sets.Tris[t], vb = sets.Tris[t + 1], vc = sets.Tris[t + 2];
-            if (va < 0 || vb < 0 || vc < 0
-                || va >= sets.NodeOf.Length || vb >= sets.NodeOf.Length || vc >= sets.NodeOf.Length) continue;
-            int a = sets.NodeOf[va], b = sets.NodeOf[vb], c = sets.NodeOf[vc];
-            if (a == b || b == c || c == a || !considered[a] || !considered[b] || !considered[c]) continue;
-
-            Vector3 pa = Placed(sets, nodeDelta, a), pb = Placed(sets, nodeDelta, b), pc = Placed(sets, nodeDelta, c);
-            float standoff = clearBody ? Clearance
-                           : MathF.Min(Clearance, MathF.Min(authored[a], MathF.Min(authored[b], authored[c])));
-            // Which of the face's edges a landing may sit on: the one opposite each corner.
-            bool edgeA = Shared(b, c), edgeB = Shared(c, a), edgeC = Shared(a, b);
-            var (depth, outward) = Through(drawn, pa, pb, pc, edgeA, edgeB, edgeC);
-            if (depth <= 0f) continue;   // near the skin, perhaps, but not through it
-
-            // Already through as authored: the author's, and left as it is.
-            if (!clearBody && Through(was, ToVector(sets.NodeAt[a]), ToVector(sets.NodeAt[b]),
-                                      ToVector(sets.NodeAt[c]), edgeA, edgeB, edgeC).Depth > 0f)
-                continue;
-
-            float push = depth + standoff;
-            foreach (int n in new[] { a, b, c })
+            var (push, outward) = check.Need(face, nodeDelta);
+            if (push <= 0f) continue;   // near the skin, perhaps, but not through it
+            foreach (int n in new[] { face.A, face.B, face.C })
             {
                 if (push <= need[n]) continue;
                 need[n] = push;
@@ -231,9 +186,140 @@ internal static partial class BodyRetarget
             any = true;
         }
         return any;
+    }
+
+    /// <summary>
+    /// The cloth faces <see cref="SkinThroughFaces"/> judges, and the test itself, built once so
+    /// <see cref="ClearFaces"/> can ask it again once the push-out's fold guard has halved the face pushes away and the
+    /// fold relax has had its turn.
+    /// </summary>
+    internal sealed class FaceCheck
+    {
+        private readonly Sets sets;
+        private readonly float[] authored;
+        private readonly bool clearBody;
+        private readonly Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> drawn;
+
+        /// <summary>Faces whose corners are all considered and that the old skin was not already through as authored,
+        /// with which of their edges another face shares (the one opposite each corner).</summary>
+        public readonly List<(int A, int B, int C, bool EdgeA, bool EdgeB, bool EdgeC)> Faces = [];
+
+        /// <summary>Every triangle of the garment, by node — what a push has to leave facing the way it was drawn.</summary>
+        public readonly List<(int A, int B, int C)> Tris = [];
+
+        /// <summary>Per triangle of <see cref="Tris"/>: cloth that is not one of <see cref="Faces"/> — authored through
+        /// the skin, or with a corner the push-out leaves where it is — so nothing will lift it if a push sinks it.</summary>
+        public readonly List<bool> Unliftable = [];
+
+        private readonly List<(bool A, bool B, bool C)> triEdges = [];
+
+        /// <summary>Per node, the indices into <see cref="Faces"/> it is a corner of.</summary>
+        public readonly List<int>[] FacesOf;
+
+        /// <summary>Per node, the indices into <see cref="Tris"/> it is a corner of.</summary>
+        public readonly List<int>[] TrisOf;
+
+        public FaceCheck(Sets sets, IReadOnlyList<int> nodes, TargetBody before, TargetBody after, float[] authored,
+                         bool clearBody)
+        {
+            this.sets = sets;
+            this.authored = authored;
+            this.clearBody = clearBody;
+            drawn = Grid(after);
+            var was = clearBody ? null : Grid(before);
+
+            var considered = new bool[sets.NodeCount];
+            foreach (int n in nodes) considered[n] = true;
+
+            // Edges two DIFFERENT cloth faces share. A skin point that lands on one is still under the cloth — the
+            // cuff's top edge, where its wall meets its cap — while one landing on an edge only one face uses is past
+            // the cloth's hem, where the body going on wider (a thigh above a stocking) is no clip at all. Faces are
+            // counted once per set of corners: double-sided or lined cloth draws every face twice, and counted twice
+            // its hems would all look shared.
+            var distinct = new HashSet<(int, int, int)>();
+            var edgeUses = new Dictionary<(int, int), int>();
+            var tris = new List<(int, int, int)>();
+            for (int t = 0; t + 2 < sets.Tris.Length; t += 3)
+            {
+                if (sets.Tris[t] < 0 || sets.Tris[t + 1] < 0 || sets.Tris[t + 2] < 0) continue;
+                if (sets.Tris[t] >= sets.NodeOf.Length || sets.Tris[t + 1] >= sets.NodeOf.Length
+                    || sets.Tris[t + 2] >= sets.NodeOf.Length) continue;
+                int x = sets.NodeOf[sets.Tris[t]], y = sets.NodeOf[sets.Tris[t + 1]], z = sets.NodeOf[sets.Tris[t + 2]];
+                if (x == y || y == z || z == x) continue;
+                tris.Add((x, y, z));
+                if (!distinct.Add(FaceKey(x, y, z))) continue;
+                foreach (var key in new[] { EdgeKey(x, y), EdgeKey(y, z), EdgeKey(z, x) })
+                    edgeUses[key] = edgeUses.GetValueOrDefault(key) + 1;
+            }
+            bool Shared(int x, int y) => edgeUses.GetValueOrDefault(EdgeKey(x, y)) >= 2;
+
+            FacesOf = new List<int>[sets.NodeCount];
+            TrisOf = new List<int>[sets.NodeCount];
+            for (int n = 0; n < sets.NodeCount; n++)
+            {
+                FacesOf[n] = [];
+                TrisOf[n] = [];
+            }
+
+            var cloth = new bool[sets.NodeCount];
+            foreach (int n in sets.ClothNodes) cloth[n] = true;
+
+            foreach (var (a, b, c) in tris)
+            {
+                foreach (int n in new[] { a, b, c }) TrisOf[n].Add(Tris.Count);
+                bool edgeA = Shared(b, c), edgeB = Shared(c, a), edgeC = Shared(a, b);
+                Tris.Add((a, b, c));
+                triEdges.Add((edgeA, edgeB, edgeC));
+                bool isCloth = cloth[a] && cloth[b] && cloth[c];
+                Unliftable.Add(isCloth);   // until it is found to be a face below
+
+                if (!considered[a] || !considered[b] || !considered[c]) continue;
+                // Already through as authored: the author's, and left as it is.
+                if (was != null && Through(was, ToVector(sets.NodeAt[a]), ToVector(sets.NodeAt[b]),
+                                           ToVector(sets.NodeAt[c]), edgeA, edgeB, edgeC).Depth > 0f)
+                    continue;
+                foreach (int n in new[] { a, b, c }) FacesOf[n].Add(Faces.Count);
+                Faces.Add((a, b, c, edgeA, edgeB, edgeC));
+                Unliftable[^1] = false;
+            }
+        }
+
+        /// <summary>How far the drawn skin is through triangle <paramref name="t"/> of <see cref="Tris"/>, 0 when clear.</summary>
+        public float Depth(int t, Vec3[] nodeDelta)
+        {
+            var (a, b, c) = Tris[t];
+            var (ea, eb, ec) = triEdges[t];
+            return Through(drawn, Placed(sets, nodeDelta, a), Placed(sets, nodeDelta, b), Placed(sets, nodeDelta, c),
+                           ea, eb, ec).Depth;
+        }
+
+        /// <summary>Facing the other way from how the author drew it — the push's own fold test.</summary>
+        public bool TurnedOver(int t, Vec3[] nodeDelta)
+        {
+            var (a, b, c) = Tris[t];
+            var was = ToVector(sets.NodeAt[a]);
+            var n0 = Vector3.Cross(ToVector(sets.NodeAt[b]) - was, ToVector(sets.NodeAt[c]) - was);
+            if (n0.Length() <= 1e-12f) return false;   // degenerate as authored
+            var now = Placed(sets, nodeDelta, a);
+            var n1 = Vector3.Cross(Placed(sets, nodeDelta, b) - now, Placed(sets, nodeDelta, c) - now);
+            return Vector3.Dot(n0, n1) <= 0f;
+        }
+
+        /// <summary>How far each corner of the face has to go out for it to clear the drawn skin by the clearance (or
+        /// by the corners' own standoff where that is less), and which way is out; zero when no skin is through it.</summary>
+        public (float Push, Vector3 Outward) Need((int A, int B, int C, bool EdgeA, bool EdgeB, bool EdgeC) face,
+                                                  Vec3[] nodeDelta, float tolerance = 0f)
+        {
+            var (depth, outward) = Through(drawn, Placed(sets, nodeDelta, face.A), Placed(sets, nodeDelta, face.B),
+                                           Placed(sets, nodeDelta, face.C), face.EdgeA, face.EdgeB, face.EdgeC);
+            if (depth <= tolerance) return (0f, default);
+            float standoff = clearBody ? Clearance
+                           : MathF.Min(Clearance, MathF.Min(authored[face.A], MathF.Min(authored[face.B], authored[face.C])));
+            return (depth + standoff, outward);
+        }
 
         // The skin's points, bucketed so a face only looks at the skin near it.
-        static Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> Grid(TargetBody body)
+        private static Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> Grid(TargetBody body)
         {
             var grid = new Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>>();
             foreach (var (at, normal) in body.Points())
@@ -247,9 +333,9 @@ internal static partial class BodyRetarget
 
         // How far the skin is through the face abc — the deepest point of it on the outside — and which way is out.
         // Zero when no skin is through.
-        static (float Depth, Vector3 Outward) Through(Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> grid,
-                                                      Vector3 pa, Vector3 pb, Vector3 pc,
-                                                      bool edgeA, bool edgeB, bool edgeC)
+        private static (float Depth, Vector3 Outward) Through(Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> grid,
+                                                              Vector3 pa, Vector3 pb, Vector3 pc,
+                                                              bool edgeA, bool edgeB, bool edgeC)
         {
             var face = Vector3.Cross(pb - pa, pc - pa);
             if (face.LengthSquared() < 1e-14f) return (0f, default);
@@ -341,10 +427,15 @@ internal static partial class BodyRetarget
     /// <param name="clearBody">Clear cloth out of the body wherever it is buried, not only where the refit buried it
     /// — see <see cref="BodyRetarget.Plan"/>. The exclusions above are what it drops: cloth the author tucked under the
     /// skin comes out too, and the standoff it is pushed to is the clearance rather than the author's own.</param>
+    /// <param name="faceCheck">The face test it built, for <see cref="ClearFaces"/> to run again once the fold relax
+    /// has had its turn.</param>
+    /// <param name="pushedBy">How far it pushed each node, for the same.</param>
     private static int PushOut(Sets sets, IReadOnlyList<int> candidates, TargetBody before, TargetBody after,
-                               Vec3[] nodeDelta, bool clearBody, out float worst)
+                               Vec3[] nodeDelta, bool clearBody, out float worst, out FaceCheck faceCheck,
+                               out float[] pushedBy)
     {
         worst = 0f;
+        pushedBy = new float[sets.NodeCount];
 
         // The authored-inside nodes out of the set entirely, before anything else looks at it: neither a source of
         // push nor a receiver of the spread below, which would otherwise drag hidden cloth out at the boundary.
@@ -417,7 +508,8 @@ internal static partial class BodyRetarget
             any = true;
         }
 
-        any |= SkinThroughFaces(sets, nodes, before, after, nodeDelta, authored, clearBody, need, dir, hasDir);
+        faceCheck = new FaceCheck(sets, nodes, before, after, authored, clearBody);
+        any |= SkinThroughFaces(faceCheck, nodeDelta, need, dir, hasDir);
 
         if (!any) return 0;
 
@@ -534,7 +626,6 @@ internal static partial class BodyRetarget
 
         // How far each node has been pushed out, so the settle below reports pushes and not the smoothing that rides
         // along with them.
-        var pushedBy = new float[sets.NodeCount];
         int pushed = 0;
         foreach (int n in nodes)
         {
@@ -553,6 +644,134 @@ internal static partial class BodyRetarget
         if (!Tuned.NoSettle) pushed += Settle(sets, nodes, after, nodeDelta, authored, clearBody, pushedBy, ref worst);
 
         return pushed;
+    }
+
+    /// <summary>Rounds <see cref="ClearFaces"/> gets.</summary>
+    private const int ClearFaceRounds = 8;
+
+    /// <summary>
+    /// Clear what the push-out leaves: skin still through the MIDDLE of a cloth face whose corners may all be clear.
+    /// <para/>
+    /// The push-out asks for it (<see cref="SkinThroughFaces"/>), but its fold guard halves a face's push as readily as a
+    /// vertex's, and <see cref="Settle"/> only looks at vertices. Measured on "Auburn" (Neolithe Almond XS to Rue+ Yiggle
+    /// Large): 356 of the 520 cloth faces over the breasts still had skin through them — 21 at Medium, 45 as authored.
+    /// A refit onto a much larger breast stretches the cloth's faces (15 mm long to 22) over a rounder surface, and a flat
+    /// face sags into a round one between its corners; in game that is patches of skin the shape of the faces.
+    /// <para/>
+    /// Push alone, no smoothing: each corner of a face still through goes out along the face's way out by as much as the
+    /// face needs, the most any of its faces asks. Folded into <see cref="Settle"/>'s push-and-smooth rounds instead, the
+    /// smoothing drew every pushed corner back in and the next push sent it out again: the whole patch ratcheted outward,
+    /// cloth already 10-20 mm off the skin went 5-15 mm further, and the sleeves and back moved too.
+    /// <para/>
+    /// A push never turns a triangle over, and never sinks one nothing will lift. Each corner goes the way its own face
+    /// needs, and where neighbouring faces face different ways — a crease, a pleat standing off the surface — that can
+    /// tip a triangle beside them onto its back, which draws black; or carry a corner sideways under a triangle the pass
+    /// may not lift (authored through the skin, or with a corner the push-out holds), 8 mm through going to 11 on "This
+    /// Old Thing" L to Rue L. So a round's pushes are tried, and every triangle they newly turn over or sink has its pushed
+    /// corners put back and left for the rest of the pass: the face stays through rather than harm its neighbour, the
+    /// push-out's own rule. Put back, not halved: halving is the guard that left these faces through in the first place.
+    /// <para/>
+    /// Every face around a corner a round moved is looked at again in the next, not just the faces that were through: a
+    /// corner pushed along one face's way out moves the faces beside it too.
+    /// <para/>
+    /// It runs last, after <see cref="Unfold"/>: the fold relax only keeps VERTICES out of the skin, and run before it
+    /// the faces it cleared were sunk again. Last, and turning nothing over, it also leaves the relax's work as it was:
+    /// run inside the push-out instead, the relax started from different cloth and left more folds standing ("This Old
+    /// Thing" L to Rue L, 21 to 31) though this pass had turned none over itself.
+    /// </summary>
+    /// <param name="pushedBy">How far each node has been pushed so far, added to here.</param>
+    /// <param name="stay">Nodes it must not move — the hard pieces, once they have been put back whole.</param>
+    /// <returns>How many nodes it pushed that nothing before it had.</returns>
+    internal static int ClearFaces(FaceCheck check, Vec3[] nodeDelta, float[] pushedBy, ref float worst,
+                                   bool[]? stay = null)
+    {
+        int count = pushedBy.Length;
+        var need = new float[count];
+        var dir = new Vector3[count];
+        var held = stay != null ? (bool[])stay.Clone() : new bool[count];
+        var touched = new List<int>();
+        int newly = 0;
+
+        // Turned over before this pass moved anything: the transfer's or the push's, and not this pass's to answer for.
+        var foldedBefore = new bool[check.Tris.Count];
+        for (int t = 0; t < check.Tris.Count; t++) foldedBefore[t] = check.TurnedOver(t, nodeDelta);
+
+        var candidates = new HashSet<int>();
+        for (int f = 0; f < check.Faces.Count; f++) candidates.Add(f);
+
+        for (int round = 0; round < ClearFaceRounds && candidates.Count > 0; round++)
+        {
+            foreach (int n in touched) need[n] = 0f;
+            touched.Clear();
+            foreach (int f in candidates)
+            {
+                var face = check.Faces[f];
+                var (push, outward) = check.Need(face, nodeDelta, SettleTolerance);
+                if (push <= 0f) continue;
+                foreach (int n in new[] { face.A, face.B, face.C })
+                {
+                    if (held[n]) continue;
+                    if (need[n] == 0f) touched.Add(n);
+                    if (push <= need[n]) continue;
+                    need[n] = push;
+                    dir[n] = outward;
+                }
+            }
+            if (touched.Count == 0) break;
+
+            // How deep the skin is through each triangle beside a push that nothing would lift again, before the push.
+            var sunkBefore = new Dictionary<int, float>();
+            foreach (int n in touched)
+                foreach (int t in check.TrisOf[n])
+                    if (check.Unliftable[t] && !sunkBefore.ContainsKey(t)) sunkBefore[t] = check.Depth(t, nodeDelta);
+
+            var was = new Dictionary<int, Vec3>(touched.Count);
+            foreach (int n in touched)
+            {
+                was[n] = nodeDelta[n];
+                var d = dir[n] * need[n];
+                nodeDelta[n] = new Vec3(nodeDelta[n].X + d.X, nodeDelta[n].Y + d.Y, nodeDelta[n].Z + d.Z);
+            }
+
+            // Put back every push that turned a triangle over, until none does. Putting one back can turn another over
+            // against a neighbour that kept its push, so it repeats; it ends, because each round puts back at least one
+            // of finitely many pushes, and with all of them back the mesh is as it was.
+            bool changed = true;
+            while (changed)
+            {
+                changed = false;
+                foreach (int n in touched)
+                {
+                    if (held[n]) continue;
+                    foreach (int t in check.TrisOf[n])
+                    {
+                        bool folds = !foldedBefore[t] && check.TurnedOver(t, nodeDelta);
+                        bool sinks = sunkBefore.TryGetValue(t, out float depth)
+                                  && check.Depth(t, nodeDelta) > depth + SettleTolerance;
+                        if (!folds && !sinks) continue;
+                        var (a, b, c) = check.Tris[t];
+                        foreach (int m in new[] { a, b, c })
+                        {
+                            if (!was.TryGetValue(m, out var back) || held[m]) continue;
+                            nodeDelta[m] = back;
+                            held[m] = true;
+                            changed = true;
+                        }
+                    }
+                }
+            }
+
+            candidates.Clear();
+            foreach (int n in touched)
+            {
+                if (held[n]) continue;
+                if (pushedBy[n] <= 0f) newly++;
+                pushedBy[n] += need[n];
+                if (pushedBy[n] > worst) worst = pushedBy[n];
+                foreach (int f in check.FacesOf[n]) candidates.Add(f);
+            }
+        }
+        return newly;
     }
 
     /// <summary>Rounds of push-then-smooth <see cref="Settle"/> gets.</summary>
