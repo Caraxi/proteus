@@ -38,6 +38,7 @@ public sealed partial class SecondSkinService
         private readonly IReadOnlyDictionary<string, byte[]>? pristineHumanModels;
         private readonly int? shellTexSize;
         private readonly IReadOnlyList<EquippedSlotVariants.Slot>? equippedSlotVariants;
+        private readonly IReadOnlySet<string>? hiddenParts;
         private int contentIn;
         private int texSize;
         private Dictionary<(int, string, string), string> variantMemo = null!;
@@ -112,7 +113,7 @@ public sealed partial class SecondSkinService
         private List<string> appendHostModelPaths = null!;
         private Result? result;
 
-        public ShellSetBuild(SecondSkinService service, string charCode, IReadOnlyList<(OverlayEntry Entry, ResolvedOverlay Overlay)> gearOverlays, string outputRoot, string? bodyType, string? effectsFolder, IReadOnlyDictionary<string, string>? equippedPartModels, IReadOnlyDictionary<string, string>? equippedAccessories, Func<string, bool>? gen2Allowed, int? invisibleGlassesSet, IReadOnlyList<string>? metModels, IReadOnlyDictionary<string, HashSet<string>>? enabledBodyShapes, IReadOnlySet<string>? maskShellMods, IReadOnlyDictionary<string, string>? bareBodyModels, string? drawnRaceCode, IReadOnlySet<string>? activeMaterials, int? emperorRingVariant, int? invisibleGlassesVariant, IReadOnlyList<string>? humanPartModels, IReadOnlyList<(OverlayEntry Entry, ResolvedContent Content)>? contentLayers, IReadOnlyList<OverlayEntry>? allEntries, IReadOnlyDictionary<string, byte[]>? pristineHumanModels, int? shellTexSize, IReadOnlyList<EquippedSlotVariants.Slot>? equippedSlotVariants)
+        public ShellSetBuild(SecondSkinService service, string charCode, IReadOnlyList<(OverlayEntry Entry, ResolvedOverlay Overlay)> gearOverlays, string outputRoot, string? bodyType, string? effectsFolder, IReadOnlyDictionary<string, string>? equippedPartModels, IReadOnlyDictionary<string, string>? equippedAccessories, Func<string, bool>? gen2Allowed, int? invisibleGlassesSet, IReadOnlyList<string>? metModels, IReadOnlyDictionary<string, HashSet<string>>? enabledBodyShapes, IReadOnlySet<string>? maskShellMods, IReadOnlyDictionary<string, string>? bareBodyModels, string? drawnRaceCode, IReadOnlySet<string>? activeMaterials, int? emperorRingVariant, int? invisibleGlassesVariant, IReadOnlyList<string>? humanPartModels, IReadOnlyList<(OverlayEntry Entry, ResolvedContent Content)>? contentLayers, IReadOnlyList<OverlayEntry>? allEntries, IReadOnlyDictionary<string, byte[]>? pristineHumanModels, int? shellTexSize, IReadOnlyList<EquippedSlotVariants.Slot>? equippedSlotVariants, IReadOnlySet<string>? hiddenParts = null)
         {
             this.service = service;
             this.charCode = charCode;
@@ -138,6 +139,7 @@ public sealed partial class SecondSkinService
             this.pristineHumanModels = pristineHumanModels;
             this.shellTexSize = shellTexSize;
             this.equippedSlotVariants = equippedSlotVariants;
+            this.hiddenParts = hiddenParts;
         }
 
         public Result? Run()
@@ -346,6 +348,14 @@ public sealed partial class SecondSkinService
             barePartsMissing = 0;
             foreach (var part in Parts)
             {
+                // A slot the worn gear's EQP hides is loaded but never drawn (a top shipping its own legs); a shell cut from it
+                // would lie over the top's legs. Not counted as a bare part tried: the whole-body fallback is about missing files.
+                if (hiddenParts != null && hiddenParts.Contains(part))
+                {
+                    service.log.Information("[Proteus] second skin part {0}: hidden by the worn gear's EQP, not cut", part);
+                    continue;
+                }
+
                 // With gear equipped in a slot, the gear model is drawn instead of the bare-body part and carries the skin it
                 // exposes, posed, so the shell is cut from it (SecondSkinWriter keeps only the skin mesh). Slots without gear
                 // use the e0000 model the game is drawing, rebuilt from the model code only when the live set lacks it.

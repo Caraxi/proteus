@@ -36,6 +36,7 @@ public class PenumbraBridge : IDisposable
     private readonly GetGameObjectResourcePaths getGameObjectResourcePaths;
     private readonly AddTemporaryMod addTemporaryMod;
     private readonly RemoveTemporaryMod removeTemporaryMod;
+    private readonly GetPlayerMetaManipulations getPlayerMetaManipulations;
 
     /// <summary>When this bridge last changed a temporary mod, so Penumbra's echo of it can be dropped.</summary>
     private long lastOwnTemporaryModTick;
@@ -101,6 +102,7 @@ public class PenumbraBridge : IDisposable
         getGameObjectResourcePaths = new GetGameObjectResourcePaths(pluginInterface);
         addTemporaryMod = new AddTemporaryMod(pluginInterface);
         removeTemporaryMod = new RemoveTemporaryMod(pluginInterface);
+        getPlayerMetaManipulations = new GetPlayerMetaManipulations(pluginInterface);
 
         modSettingChangedSub = Penumbra.Api.IpcSubscribers.ModSettingChanged.Subscriber(pluginInterface,
             (change, collId, modDir, inherited) =>
@@ -378,6 +380,18 @@ public class PenumbraBridge : IDisposable
             return paths.Count > 0 ? paths : null;
         }
         catch (Exception ex) { log.Warning(ex, "GetGameObjectResourcePaths failed (models)"); return null; }
+    }
+
+    /// <summary>
+    /// Every meta manipulation active in the local player's collection, in Penumbra's own encoding (base64 of a
+    /// gzipped, version-prefixed blob; see <see cref="Services.EqpVisibility.ParsePenumbraEqp"/>), or null when
+    /// unavailable. Call on the framework thread: Penumbra resolves the player's collection off the object table.
+    /// </summary>
+    public string? GetPlayerMetaManipulations()
+    {
+        if (!IsAvailable) return null;
+        try { return getPlayerMetaManipulations.Invoke(); }
+        catch (Exception ex) { log.Warning(ex, "GetPlayerMetaManipulations failed"); return null; }
     }
 
     /// <summary>

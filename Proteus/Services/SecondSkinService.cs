@@ -919,9 +919,11 @@ public sealed partial class SecondSkinService
         // The sheet size to bake at, as already chosen by the caller's prefetch; null recomputes.
         int? shellTexSize = null,
         // The item variant of every drawn gear slot, for the material folder of a worn host not yet in activeMaterials (see VariantFolderFor).
-        IReadOnlyList<Interop.EquippedSlotVariants.Slot>? equippedSlotVariants = null)
+        IReadOnlyList<Interop.EquippedSlotVariants.Slot>? equippedSlotVariants = null,
+        // Body slots ("dwn", "glv", "sho") the worn gear's EQP hides: loaded, never drawn, so never cut (see EqpVisibility).
+        IReadOnlySet<string>? hiddenParts = null)
     {
-        return new ShellSetBuild(this, charCode, gearOverlays, outputRoot, bodyType, effectsFolder, equippedPartModels, equippedAccessories, gen2Allowed, invisibleGlassesSet, metModels, enabledBodyShapes, maskShellMods, bareBodyModels, drawnRaceCode, activeMaterials, emperorRingVariant, invisibleGlassesVariant, humanPartModels, contentLayers, allEntries, pristineHumanModels, shellTexSize, equippedSlotVariants).Run();
+        return new ShellSetBuild(this, charCode, gearOverlays, outputRoot, bodyType, effectsFolder, equippedPartModels, equippedAccessories, gen2Allowed, invisibleGlassesSet, metModels, enabledBodyShapes, maskShellMods, bareBodyModels, drawnRaceCode, activeMaterials, emperorRingVariant, invisibleGlassesVariant, humanPartModels, contentLayers, allEntries, pristineHumanModels, shellTexSize, equippedSlotVariants, hiddenParts).Run();
     }
 
     private static string Rel(string root, string full) => Path.GetRelativePath(root, full).Replace('/', '\\');
