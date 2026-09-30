@@ -154,6 +154,43 @@ internal static class BodyRetargetWriter
         => Save(modRoot, groupName, gamePath, bodyMod, from, [new Refit(optionName, model, to)]);
 
     /// <summary>
+    /// Whether the mod gives <paramref name="gamePath"/> a model of the author's own — some redirect of it that points
+    /// at a file other than one a refit saved (per <paramref name="record"/>). A size this tool saved there earlier is
+    /// not the author's, and must not count as one.
+    /// </summary>
+    public static bool AuthorProvides(IEnumerable<PenumbraModMeta.Redirect> redirects, Record? record, string gamePath)
+    {
+        static string Norm(string file) => file.Replace('\\', '/').Trim('/');
+        var ours = (record?.Options ?? []).Select(e => Norm(e.File)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return redirects.Any(r => string.Equals(r.GamePath, gamePath, StringComparison.OrdinalIgnoreCase)
+                                  && !ours.Contains(Norm(r.File)));
+    }
+
+    /// <summary>
+    /// What a manipulation is ABOUT: its type and every field of it but the value it sets, names sorted. Two entries
+    /// with the same key edit the same thing, so an option carries one of them.
+    /// <para/>
+    /// Not the entry's text: Penumbra rewrites a manifest in its own shape — fields reordered, an Eqdp's
+    /// <c>ShiftedEntry</c> dropped — so an entry this tool wrote reads back as different text from the one it would
+    /// write now, and a text comparison kept both.
+    /// </summary>
+    internal static string ManipulationKey(object manipulation)
+    {
+        var e = manipulation is JsonElement j ? j : JsonSerializer.SerializeToElement(manipulation);
+        if (e.ValueKind != JsonValueKind.Object) return e.GetRawText();
+
+        string type = e.TryGetProperty("Type", out var t) ? t.ToString() : "";
+        if (!e.TryGetProperty("Manipulation", out var body) || body.ValueKind != JsonValueKind.Object)
+            return type + "|" + e.GetRawText();
+
+        var fields = body.EnumerateObject()
+                         .Where(p => p.Name is not ("Entry" or "ShiftedEntry"))
+                         .OrderBy(p => p.Name, StringComparer.Ordinal)
+                         .Select(p => p.Name + "=" + p.Value.ToString());
+        return type + "|" + string.Join("|", fields);
+    }
+
+    /// <summary>
     /// Whether <paramref name="groupName"/> is a group of the author's that a save would add options to, rather than
     /// one Proteus made (or would make) itself: it exists, and no save of ours created it.
     /// </summary>
@@ -177,8 +214,14 @@ internal static class BodyRetargetWriter
     /// somewhere else — the default files, another group, or the game itself. Its other files are copied into the
     /// refit, because a single-select group switches it off the moment the refit is switched on.
     /// </param>
+    /// <param name="manipulations">
+    /// Metadata every refit's option carries besides its file, or null for none. A garment the game only ships for
+    /// Midlander men, baked into a model of the wearer's own race (<see cref="RacialModelBake"/>), needs the EQDP entry
+    /// that makes the game load that model at all — without it the file is written and never read.
+    /// </param>
     public static Outcome Save(string modRoot, string groupName, string gamePath, string bodyMod, string from,
-                               IReadOnlyList<Refit> refits, string? fromOption = null)
+                               IReadOnlyList<Refit> refits, string? fromOption = null,
+                               IReadOnlyList<object>? manipulations = null)
     {
         string names = string.Join(", ", refits.Select(r => r.Option));
         lock (WriteLock)
@@ -263,10 +306,36 @@ internal static class BodyRetargetWriter
                     return files;
                 }
 
+                // The metadata the option carries: this save's, and whatever an earlier save of the same option wrote,
+                // once each. Replacing an option outright would otherwise drop the EQDP entry a _top save put there when
+                // the _dwn is saved into the same option after it. Once each by what an entry is ABOUT, not by its text
+                // (see ManipulationKey), and this save's wins where the two disagree.
+                List<object>? ManipulationsFor(Refit refit)
+                {
+                    var existing = options.FirstOrDefault(o => string.Equals(o.Name, refit.Option,
+                                                                             StringComparison.OrdinalIgnoreCase));
+                    var all = new List<object>();
+                    var at = new Dictionary<string, int>(StringComparer.Ordinal);
+                    foreach (var m in (existing.Manipulations ?? []).Concat(manipulations ?? []))
+                    {
+                        string key = ManipulationKey(m);
+                        if (at.TryGetValue(key, out int i)) all[i] = m;
+                        else
+                        {
+                            at[key] = all.Count;
+                            all.Add(m);
+                        }
+                    }
+                    return all.Count > 0 ? all : null;
+                }
+
+                PenumbraModMeta.FileOption OptionFor(Refit refit, string rel)
+                    => new(refit.Option, FilesFor(refit, rel), ManipulationsFor(refit));
+
                 if (author)
                 {
-                    PenumbraModMeta.AddFileOptions(modRoot, groupName, written.Select(w =>
-                        new PenumbraModMeta.FileOption(w.Refit.Option, FilesFor(w.Refit, w.Rel))).ToList());
+                    PenumbraModMeta.AddFileOptions(modRoot, groupName, written.Select(w => OptionFor(w.Refit, w.Rel))
+                                                                              .ToList());
                     foreach (var (refit, rel) in written)
                         WriteRecord(modRoot, groupName, true, refit.Option, gamePath, rel, bodyMod, from, refit.To);
                     return new Outcome(true, groupName, names, Added(refits, groupName) +
@@ -288,7 +357,7 @@ internal static class BodyRetargetWriter
                 final.AddRange(kept);
 
                 foreach (var (refit, rel) in written)
-                    final.Add(new PenumbraModMeta.FileOption(refit.Option, FilesFor(refit, rel)));
+                    final.Add(OptionFor(refit, rel));
 
                 // A priority above every other group, which is what decides a game path two groups both claim. The
                 // POSITION is left alone: see Position.

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 using Proteus;
@@ -25,7 +26,7 @@ public class ModCreationTests
         {
             ModCreationService.WriteMod(
                 root, "Glowy", "Artist",
-                "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl",
+                ["chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl"],
                 diffuseSrc: diffuse, maskSrc: null, normalSrc: null, indexSrc: null,
                 glow: glow, scrollRgba: scroll, scrollW: w, scrollH: h, artColour: artColour);
 
@@ -175,6 +176,72 @@ public class ModCreationTests
         Assert.Equal(new byte[] {   0,   0,  0, 255 }, scroll[8..12]);
     }
 
+    /// <summary>The body stems the game defines, as <see cref="BodyMaterialCatalog.ForSuffix"/> hands them back.</summary>
+    private static IReadOnlyList<string> CatalogFor(string suffix) =>
+    [
+        "chara/human/c0101/obj/body/b0001/material/v0001/mt_c0101b0001" + suffix,
+        "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001" + suffix,
+        "chara/human/c0401/obj/body/b0001/material/v0001/mt_c0401b0001" + suffix,
+        "chara/human/c0301/obj/body/b0001/material/v0001/mt_c0301b0001" + suffix,
+        "chara/human/c1101/obj/body/b0001/material/v0001/mt_c1101b0001" + suffix,
+        "chara/human/c1401/obj/body/b0101/material/v0001/mt_c1401b0101" + suffix,
+        "chara/human/c1501/obj/body/b0001/material/v0001/mt_c1501b0001" + suffix,
+        "chara/human/c1601/obj/body/b0001/material/v0001/mt_c1601b0001" + suffix,
+        "chara/human/c1801/obj/body/b0001/material/v0001/mt_c1801b0001" + suffix,
+    ];
+
+    /// <summary>
+    /// A body skin picked on the Create tab lists the same body on every other race, the way a hand-built mod like
+    /// "Solona's Stockings" does, so the overlay survives a race change. The picked path stays first, and the other
+    /// sex's body is left out: its skin sheet is laid out differently. Female Hrothgar shares the female layout;
+    /// Lalafell never shares one.
+    /// </summary>
+    [Fact]
+    public void ExpandToAllRaces_lists_the_body_on_every_race_of_the_same_sex()
+    {
+        var paths = ModCreationService.ExpandToAllRaces(
+            "chara/human/c0401/obj/body/b0001/material/v0001/mt_c0401b0001_bibo.mtrl", CatalogFor);
+
+        Assert.Equal(
+        [
+            "chara/human/c0401/obj/body/b0001/material/v0001/mt_c0401b0001_bibo.mtrl",
+            "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl",
+            "chara/human/c1401/obj/body/b0101/material/v0001/mt_c1401b0101_bibo.mtrl",
+            "chara/human/c1601/obj/body/b0001/material/v0001/mt_c1601b0001_bibo.mtrl",
+            "chara/human/c1801/obj/body/b0001/material/v0001/mt_c1801b0001_bibo.mtrl",
+        ], paths);
+    }
+
+    /// <summary>Male bodies share among themselves, but not with male Hrothgar or Lalafell, who have their own sheets.</summary>
+    [Fact]
+    public void ExpandToAllRaces_leaves_male_hrothgar_and_lalafell_out_of_the_male_layout()
+    {
+        var paths = ModCreationService.ExpandToAllRaces(
+            "chara/human/c0101/obj/body/b0001/material/v0001/mt_c0101b0001_a.mtrl", CatalogFor);
+
+        Assert.Equal(
+        [
+            "chara/human/c0101/obj/body/b0001/material/v0001/mt_c0101b0001_a.mtrl",
+            "chara/human/c0301/obj/body/b0001/material/v0001/mt_c0301b0001_a.mtrl",
+        ], paths);
+    }
+
+    /// <summary>A body with a layout of its own targets only itself, never the male or female group.</summary>
+    [Theory]
+    [InlineData("chara/human/c1101/obj/body/b0001/material/v0001/mt_c1101b0001_a.mtrl")]
+    [InlineData("chara/human/c1201/obj/body/b0001/material/v0001/mt_c1201b0001_a.mtrl")]
+    [InlineData("chara/human/c1501/obj/body/b0001/material/v0001/mt_c1501b0001_a.mtrl")]
+    public void ExpandToAllRaces_never_spreads_an_unshared_layout(string target)
+        => Assert.Equal([target], ModCreationService.ExpandToAllRaces(target, CatalogFor));
+
+    /// <summary>Faces, gear and anything typed off the body layout stay exactly as picked.</summary>
+    [Theory]
+    [InlineData("chara/human/c0201/obj/face/f0001/material/mt_c0201f0001_fac_a.mtrl")]
+    [InlineData("chara/equipment/e6255/material/v0001/mt_c0201e6255_top_a.mtrl")]
+    [InlineData("chara/human/c0201/obj/body/b0001/material/v0002/mt_c0201b0001_bibo.mtrl")]
+    public void ExpandToAllRaces_leaves_other_materials_alone(string target)
+        => Assert.Equal([target], ModCreationService.ExpandToAllRaces(target, CatalogFor));
+
     [Fact]
     public void WriteMod_produces_a_valid_proteus_sidecar()
     {
@@ -186,7 +253,7 @@ public class ModCreationTests
         {
             ModCreationService.WriteMod(
                 root, "My Tattoo", "Artist",
-                "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl",
+                ["chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl"],
                 diffuseSrc: diffuse, maskSrc: null, normalSrc: null, indexSrc: null);
 
             // Penumbra manifest exists, at the current version — the default option lives inside it now.
@@ -262,7 +329,7 @@ public class ModCreationTests
         {
             ModCreationService.WriteMod(
                 root, "Whole Skin", "Artist",
-                "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl",
+                ["chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl"],
                 diffuseSrc: null, maskSrc: null, normalSrc: normal, indexSrc: null,
                 wholeSkin: wholeSkin);
 
@@ -303,7 +370,7 @@ public class ModCreationTests
         {
             ModCreationService.WriteMod(
                 root, "Asym", "Artist",
-                "chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl",
+                ["chara/human/c0201/obj/body/b0001/material/v0001/mt_c0201b0001_bibo.mtrl"],
                 diffuseSrc: diffuse, maskSrc: null, normalSrc: null, indexSrc: null);
 
             var path = Path.Combine(root, "Proteus", "metadata.json");
@@ -344,7 +411,7 @@ public class ModCreationTests
         {
             ModCreationService.WriteMod(
                 root, "Asym Makeup", "Artist",
-                "chara/human/c0201/obj/face/f0001/material/mt_c0201f0001_fac_a.mtrl",
+                ["chara/human/c0201/obj/face/f0001/material/mt_c0201f0001_fac_a.mtrl"],
                 diffuseSrc: diffuse, maskSrc: null, normalSrc: null, indexSrc: null,
                 faceSplit: true);
 

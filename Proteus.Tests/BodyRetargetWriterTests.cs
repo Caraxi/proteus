@@ -497,6 +497,123 @@ public class BodyRetargetWriterTests : IDisposable
         Assert.False(BodyRetargetWriter.IsAuthorGroup(root, "No Such Group"));
     }
 
+    private static readonly object Eqdp = PenumbraManipulations.EqdpManipulation("0201", "Feet", 6023);
+
+    [Fact]
+    public void A_baked_refit_carries_its_EQDP_entry_and_Original_carries_none()
+    {
+        var outcome = BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                              [new BodyRetargetWriter.Refit("Neolithe SFW L", [1], "SFW L")],
+                                              manipulations: [Eqdp]);
+        Assert.True(outcome.Ok, outcome.Message);
+
+        var options = PenumbraModMeta.TryReadFileOptions(root, Group)!;
+        Assert.Null(options.Single(o => o.Name == BodyRetargetWriter.OriginalOption).Manipulations);
+        var manips = options.Single(o => o.Name == "Neolithe SFW L").Manipulations;
+        Assert.NotNull(manips);
+        var eqdp = Assert.IsType<JsonElement>(Assert.Single(manips!));
+        Assert.Equal("Eqdp", eqdp.GetProperty("Type").GetString());
+        Assert.Equal(6023, eqdp.GetProperty("Manipulation").GetProperty("SetId").GetInt32());
+        Assert.Equal("Female", eqdp.GetProperty("Manipulation").GetProperty("Gender").GetString());
+    }
+
+    [Fact]
+    public void Saving_another_size_into_the_group_keeps_the_first_one_s_EQDP_entry()
+    {
+        // The group is rewritten whole on every save; an option read back without its manipulations would lose them.
+        BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                [new BodyRetargetWriter.Refit("Neolithe SFW L", [1], "SFW L")], manipulations: [Eqdp]);
+        BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                [new BodyRetargetWriter.Refit("Neolithe SFW S", [2], "SFW S")]);
+
+        var options = PenumbraModMeta.TryReadFileOptions(root, Group)!;
+        Assert.Single(options.Single(o => o.Name == "Neolithe SFW L").Manipulations!);
+        Assert.Null(options.Single(o => o.Name == "Neolithe SFW S").Manipulations);
+    }
+
+    [Fact]
+    public void Saving_the_same_option_again_writes_its_EQDP_entry_once()
+    {
+        for (int i = 0; i < 2; i++)
+            BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                    [new BodyRetargetWriter.Refit("Neolithe SFW L", [1], "SFW L")],
+                                    manipulations: [Eqdp]);
+
+        Assert.Single(PenumbraModMeta.TryReadFileOptions(root, Group)!
+                          .Single(o => o.Name == "Neolithe SFW L").Manipulations!);
+    }
+
+    [Fact]
+    public void An_EQDP_entry_Penumbra_rewrote_is_the_same_entry_as_the_one_Proteus_writes()
+    {
+        // As Penumbra writes the manifest back: fields reordered, ShiftedEntry dropped.
+        var rewritten = JsonDocument.Parse("""
+            { "Type": "Eqdp", "Manipulation": { "Gender": "Female", "Race": "Midlander", "SetId": 6023,
+                                                "Slot": "Feet", "Entry": 768 } }
+            """).RootElement;
+        Assert.Equal(BodyRetargetWriter.ManipulationKey(Eqdp), BodyRetargetWriter.ManipulationKey(rewritten));
+
+        var otherSet = PenumbraManipulations.EqdpManipulation("0201", "Feet", 6024);
+        var otherRace = PenumbraManipulations.EqdpManipulation("0401", "Feet", 6023);
+        Assert.NotEqual(BodyRetargetWriter.ManipulationKey(Eqdp), BodyRetargetWriter.ManipulationKey(otherSet));
+        Assert.NotEqual(BodyRetargetWriter.ManipulationKey(Eqdp), BodyRetargetWriter.ManipulationKey(otherRace));
+    }
+
+    [Fact]
+    public void Saving_again_after_Penumbra_rewrote_the_manifest_still_writes_one_EQDP_entry()
+    {
+        BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                [new BodyRetargetWriter.Refit("Neolithe SFW L", [1], "SFW L")], manipulations: [Eqdp]);
+
+        // Penumbra's shape of the same entry, put back where ours was.
+        string meta = Path.Combine(root, PenumbraModMeta.MetaFile);
+        var node = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(meta))!;
+        foreach (var group in node["Groups"]!.AsArray())
+            foreach (var option in group!["Options"]!.AsArray())
+                if (option!["Manipulations"] is System.Text.Json.Nodes.JsonArray { Count: > 0 } manips)
+                    manips[0] = System.Text.Json.Nodes.JsonNode.Parse("""
+                        { "Type": "Eqdp", "Manipulation": { "Gender": "Female", "Race": "Midlander", "SetId": 6023,
+                                                            "Slot": "Feet", "Entry": 768 } }
+                        """);
+        File.WriteAllText(meta, node.ToJsonString());
+
+        BodyRetargetWriter.Save(root, Group, GamePath, "Neolithe", "SFW M",
+                                [new BodyRetargetWriter.Refit("Neolithe SFW L", [2], "SFW L")], manipulations: [Eqdp]);
+
+        Assert.Single(PenumbraModMeta.TryReadFileOptions(root, Group)!
+                          .Single(o => o.Name == "Neolithe SFW L").Manipulations!);
+    }
+
+    [Fact]
+    public void A_refit_saved_at_a_path_is_not_the_author_s_model_for_it()
+    {
+        const string female = "chara/equipment/e6023/model/c0201e6023_sho.mdl";
+        var record = new BodyRetargetWriter.Record
+        {
+            Options = [new BodyRetargetWriter.Entry { File = "Body Retarget/Neolithe L/chara/c0201e6023_sho.mdl" }],
+        };
+        var ours = new PenumbraModMeta.Redirect(female, "body retarget\\neolithe l\\chara\\c0201e6023_sho.mdl", "Size / L");
+        var authors = new PenumbraModMeta.Redirect(female, "female\\c0201e6023_sho.mdl", "Size / Female");
+
+        Assert.False(BodyRetargetWriter.AuthorProvides([ours], record, female));
+        Assert.True(BodyRetargetWriter.AuthorProvides([ours, authors], record, female));
+        Assert.False(BodyRetargetWriter.AuthorProvides([], record, female));
+    }
+
+    [Fact]
+    public void An_author_s_option_keeps_its_manipulations_when_a_refit_joins_the_group()
+    {
+        WriteAuthorSizeGroup();
+        BodyRetargetWriter.Save(root, TopSize, GamePath, "Rue", "Rue Med",
+                                [new BodyRetargetWriter.Refit("Rue Small", [1], "Small")], manipulations: [Eqdp]);
+
+        var options = PenumbraModMeta.TryReadFileOptions(root, TopSize)!;
+        Assert.Equal("Imc", Assert.IsType<JsonElement>(Assert.Single(options.Single(o => o.Name == "Rue Med")
+                                                                            .Manipulations!))
+                                .GetProperty("Type").GetString());
+        Assert.Single(options.Single(o => o.Name == "Rue Small").Manipulations!);
+    }
+
     /// <summary>
     /// Lay out author groups in this order, each a one-option group with nothing in it — except any group of ours
     /// already present, which is kept exactly as it is and simply placed where the list says.

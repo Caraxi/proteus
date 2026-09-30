@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Runtime.InteropServices;
 using Dalamud.Plugin.Services;
@@ -61,6 +62,23 @@ public static unsafe class LiveCharacter
         if (key.StartsWith("chara/", StringComparison.Ordinal)) return key;   // not redirected: it IS the game path
         var map = penumbra.GetActivePlayerModelGamePaths();
         return map != null && map.TryGetValue(key, out var gamePath) ? gamePath : null;
+    }
+
+    /// <summary>
+    /// The player's race (as a cXXXX number) and every bone's parent, copied out so a worker can bend a model the way
+    /// the game bends it onto them. Null while there is no skeleton to read. Main thread only.
+    /// </summary>
+    public static (ushort GenderRace, IReadOnlyDictionary<string, string?> Parents)? PlayerSkeleton(IObjectTable objects)
+    {
+        var cb = Player(objects);
+        var pose = new LivePose();
+        if (cb == null || !pose.Read(cb) || pose.GenderRace == 0) return null;
+
+        var parents = new Dictionary<string, string?>(StringComparer.Ordinal);
+        for (int b = 0; b < pose.BoneCount; b++)
+            if (pose.BoneName(b) is { Length: > 0 } name)
+                parents.TryAdd(name, pose.ParentOf(name));
+        return (pose.GenderRace, parents);
     }
 
     /// <summary>The racial deformer as the player's mods resolve it, or the game's own; null if neither reads.</summary>

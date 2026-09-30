@@ -733,7 +733,11 @@ internal static class PenumbraModMeta
     /// <summary>One option of a group that publishes files.</summary>
     /// <param name="Files">Game path to mod-root-relative file. Empty means "this option contributes nothing", which
     /// is a useful thing for an option to do: it lets the group be switched off without deleting it.</param>
-    public readonly record struct FileOption(string Name, IReadOnlyDictionary<string, string> Files);
+    /// <param name="Manipulations">The option's metadata edits, written verbatim; null for none. Read back as boxed
+    /// <see cref="JsonElement"/>s, so an option rewritten from what was read keeps them — dropping them silently is how
+    /// a second save into a group would switch off the first one's EQDP entry.</param>
+    public readonly record struct FileOption(string Name, IReadOnlyDictionary<string, string> Files,
+                                             IReadOnlyList<object>? Manipulations = null);
 
     /// <summary>
     /// Write one single-select group whose options CARRY redirects — which
@@ -777,7 +781,7 @@ internal static class PenumbraModMeta
                 Description   = "",
                 Files         = o.Files.ToDictionary(p => p.Key, p => p.Value),
                 FileSwaps     = new Dictionary<string, string>(),
-                Manipulations = Array.Empty<object>(),
+                Manipulations = (o.Manipulations ?? []).ToArray(),
             }).ToArray(),
         };
 
@@ -803,7 +807,7 @@ internal static class PenumbraModMeta
                     Description   = "",
                     Files         = option.Files.ToDictionary(p => p.Key, p => p.Value),
                     FileSwaps     = new Dictionary<string, string>(),
-                    Manipulations = Array.Empty<object>(),
+                    Manipulations = (option.Manipulations ?? []).ToArray(),
                 });
                 int at = IndexOfOption(list, option.Name);
                 if (at >= 0) list[at] = built;
@@ -926,7 +930,12 @@ internal static class PenumbraModMeta
                     if (p.Value.ValueKind == JsonValueKind.String && p.Value.GetString() is { Length: > 0 } rel)
                         files[p.Name] = rel;
 
-            result.Add(new FileOption(o.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "", files));
+            List<object>? manips = null;
+            if (o.TryGetProperty("Manipulations", out var m) && m.ValueKind == JsonValueKind.Array)
+                foreach (var e in m.EnumerateArray())
+                    (manips ??= []).Add(e.Clone());   // the document is disposed when the caller returns
+
+            result.Add(new FileOption(o.TryGetProperty("Name", out var n) ? n.GetString() ?? "" : "", files, manips));
         }
         return result;
     }

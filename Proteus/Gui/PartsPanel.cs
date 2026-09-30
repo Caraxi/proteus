@@ -2361,7 +2361,8 @@ public sealed class PartsPanel
         }
         brushChangedAt = -1;
 
-        status = string.Format(Strings.Parts.BrushSavedFmt, volume.Worst * 1000f);
+        status = Strings.Parts.BrushSaved;
+        log.Information("[Proteus] brush: saved {0}, moved up to {1:F2} mm", rel, volume.Worst * 1000f);
 
         // Wind that could not land, said rather than left to look like the brush missing.
         if (result.WindMeshesRefused > 0)
@@ -2616,7 +2617,7 @@ public sealed class PartsPanel
             FlushPending: () => FlushPending(),
             PushPreview: PushRetargetPreview,
             EndPreview: () => EndLivePreview(refreshGame: true),
-            SetStatus: (text, error) => { status = text; statusIsError = error; },
+            SetStatus: (text, error) => { status = text.Length > 0 ? text : null; statusIsError = error; },
             AfterModChange: (changed, afterReload) =>
             {
                 // Whichever mod the save actually wrote into: the garment's own, or one made to hold its refits.
@@ -2635,7 +2636,27 @@ public sealed class PartsPanel
             },
             Held: RetargetHolds,
             SaveMod: (bodyName, create) => RefitModFor(bodyName, create),
-            KeepShape: RetargetShapes));
+            KeepShape: RetargetShapes,
+            Wearer: RetargetWearer));
+    }
+
+    /// <summary>The racial deformer, read once — the live brush reads its own the same way.</summary>
+    private XivLiveMesh.PbdFile? retargetPbd;
+    private bool retargetPbdTried;
+
+    /// <summary>
+    /// The character a garment is refitted for, for Body size to bake a model of their race from one drawn from
+    /// another's. Null while there is no skeleton or no deformer to read.
+    /// </summary>
+    private RacialModelBake.Wearer? RetargetWearer()
+    {
+        if (LiveCharacter.PlayerSkeleton(Plugin.ObjectTable) is not { } skeleton) return null;
+        if (!retargetPbdTried)
+        {
+            retargetPbdTried = true;
+            retargetPbd = LiveCharacter.LoadPbd(penumbra, Plugin.DataManager, log);
+        }
+        return retargetPbd == null ? null : new RacialModelBake.Wearer(skeleton.GenderRace, skeleton.Parents, retargetPbd);
     }
 
     /// <summary>

@@ -38,6 +38,9 @@ internal static class Program
                       [--slot _top] [--race 0201] [--legs-from <rel>]
                       [--legs <label>=<size word>,... | --legs-to <rel in the target mod>]
         Proteus.Refit --list --body-root <body mod> [--slot _top]
+        Proteus.Refit --detect --garment <xs.mdl> --body-root <body mod> [--slot _top] [--race 0201]
+        Proteus.Refit --finish --garment <in.mdl> --out <out.mdl> [--body-root <body mod> [--from <rel|auto>]]
+                      [--slot _top] [--race 0201]
         """;
 
     private static int Main(string[] args)
@@ -49,6 +52,8 @@ internal static class Program
         {
             var opts = Parse(args);
             if (opts.ContainsKey("list")) return List(opts);
+            if (opts.ContainsKey("detect")) return Detect(opts);
+            if (opts.ContainsKey("finish")) return Finish(opts);
             return Run(opts);
         }
         catch (UsageException ex)
@@ -71,6 +76,117 @@ internal static class Program
         foreach (string slot in slots)
             foreach (var option in catalog.For(slot))
                 Console.WriteLine($"{slot}\t{option.Rel}\t{option.FullLabel}");
+        return 0;
+    }
+
+    /// <summary>
+    /// Which body option the garment was made on, as JSON, without refitting anything. A packer asks this first
+    /// so it can refit onto the same family's other sizes: a top made on Almond XS belongs on Almond S, not on the
+    /// plain S.
+    /// </summary>
+    private static int Detect(Dictionary<string, string> opts)
+    {
+        string garmentPath = Required(opts, "garment");
+        string slot = opts.GetValueOrDefault("slot", "_top");
+        string? race = opts.GetValueOrDefault("race", "0201");
+        var catalog = BodySizeCatalog.Read(Required(opts, "body-root"));
+        var garmentBytes = File.ReadAllBytes(garmentPath);
+        var garment = ModelPartReader.Read(garmentBytes)
+                   ?? throw new UsageException($"{garmentPath} could not be read as a model.");
+        var from = DetectSource(catalog, slot, garment, garmentBytes, race, out string confidence);
+        Console.WriteLine(JsonSerializer.Serialize(new { from = from.Rel, confidence },
+                                                   new JsonSerializerOptions { WriteIndented = true }));
+        return 0;
+    }
+
+    /// <summary>
+    /// Finish a hand-made garment the way a refitted size already comes out: its body skin swapped for the body mod's
+    /// own, and only LOD0 kept.
+    /// <para/>
+    /// The skin swap is a refit onto the body the garment was made on, so nothing moves and the push-out is off; what it
+    /// buys is the body mod's skin meshes with the body mod's tags — atr_nek, atr_ude and atr_hij on a chest, atr_sne and
+    /// atr_hiz on legs — which is how long gloves, boots or a high collar hide the skin under them. The body's variant
+    /// tags are dropped, and its skin is cut where the author cut theirs (see <c>BodyRetarget.SwapSkin</c>).
+    /// <para/>
+    /// Without <c>--body-root</c>, or when the body cannot be told, only the LOD cut is made.
+    /// </summary>
+    private static int Finish(Dictionary<string, string> opts)
+    {
+        string garmentPath = Required(opts, "garment");
+        string outPath = Required(opts, "out");
+        var bytes = File.ReadAllBytes(garmentPath);
+        byte[] model = bytes;
+        int lodsBefore = ModelLodTrimmer.LodCount(bytes);
+
+        object? skin = null;
+        string? skinSkipped = null;
+        if (opts.TryGetValue("body-root", out var bodyRoot))
+        {
+            string slot = opts.GetValueOrDefault("slot", "_top");
+            string? race = opts.GetValueOrDefault("race", "0201");
+            bool male = race != null && BodySizeCatalog.IsMaleRace(race);
+            var catalog = BodySizeCatalog.Read(bodyRoot);
+            var garment = ModelPartReader.Read(bytes)
+                       ?? throw new UsageException($"{garmentPath} could not be read as a model.");
+
+            string fromArg = opts.GetValueOrDefault("from", "auto");
+            string confidence = "Given";
+            BodyOption? from = null;
+            try
+            {
+                from = fromArg == "auto"
+                    ? DetectSource(catalog, slot, garment, bytes, race, out confidence)
+                    : Find(catalog, slot, fromArg);
+            }
+            catch (UsageException ex) when (fromArg == "auto")
+            {
+                skinSkipped = ex.Message;
+            }
+
+            if (from != null)
+            {
+                ushort? mask = MaskOf(catalog, slot);
+                string path = catalog.PathOf(from);
+                if (BodyRetarget.BuildPair(slot, path, path, slot, male, mask, mask, null, out var pair) is { } refusal)
+                    skinSkipped = refusal;
+                else
+                {
+                    var planned = BodyRetarget.Plan(garment, bytes, [pair], slot, pushOut: false, replaceSkin: true);
+                    model = planned.Model;
+                    var swap = planned.Report.Swap;
+                    skin = new
+                    {
+                        from = from.Rel,
+                        confidence,
+                        removed = swap?.Removed ?? 0,
+                        added = swap?.Added ?? 0,
+                        kept = swap?.Kept ?? 0,
+                        cut = swap?.Cut ?? 0,
+                        lostShapes = swap?.LostShapes ?? 0,
+                        worstMoveMm = planned.Report.WorstMove * 1000f,
+                    };
+                }
+            }
+        }
+
+        string? lodRefusal = null;
+        if (ModelLodTrimmer.LodCount(model) > 1)
+        {
+            if (ModelLodTrimmer.KeepLod0(model, out var why) is { } trimmed) model = trimmed;
+            else lodRefusal = why;
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
+        File.WriteAllBytes(outPath, model);
+        Console.WriteLine(JsonSerializer.Serialize(new
+        {
+            written = outPath,
+            lodsBefore,
+            lods = ModelLodTrimmer.LodCount(model),
+            lodRefusal,
+            skin,
+            skinSkipped,
+        }, new JsonSerializerOptions { WriteIndented = true }));
         return 0;
     }
 
@@ -232,7 +348,7 @@ internal static class Program
             if (!args[i].StartsWith("--", StringComparison.Ordinal))
                 throw new UsageException($"Unexpected argument \"{args[i]}\".");
             string key = args[i][2..];
-            opts[key] = key == "list" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
+            opts[key] = key is "list" or "detect" or "finish" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
         }
         return opts;
     }

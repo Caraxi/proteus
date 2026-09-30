@@ -999,6 +999,10 @@
     "message": "このパックは自前でパーツの表示を切り替えるため、Proteus は独自のチェックボックスを追加しません。パック側の設定をご利用ください。パックが切り替えないパーツは、Mod が有効な間つねに装着されます。",
     "description": ""
   },
+  "Create.AllRaces.Fmt": {
+    "message": "他のすべての種族のこのボディにも適用されます（{0} 個のマテリアル）。",
+    "description": ""
+  },
   "Create.Author.Label": {
     "message": "作者",
     "description": ""
@@ -2539,9 +2543,9 @@
     "message": "{0}: {1}",
     "description": ""
   },
-  "Parts.Brush.Saved.Fmt": {
-    "message": "保存しました。表面は最大 {0:F2} mm 動きました。",
-    "description": ""
+  "Parts.Brush.Saved": {
+    "message": "\u4fdd\u5b58\u3057\u307e\u3057\u305f\u3002",
+    "description": "Status line after the Studio brush saves its change into the mod."
   },
   "Parts.Brush.Spares.Fmt": {
     "message": "このモデルの体型スライダーに属する {0} 点を一緒に動かせませんでした。そのスライダーを有効にすると、一部で貫通が戻ることがあります。",
@@ -3260,11 +3264,11 @@
     "description": "Presets: a saved look for one mod (option ticks, colours and layer settings), shown in the strip at the top of that mod's colour editor."
   },
   "Parts.Retarget.Ambiguous.Fmt": {
-    "message": "Several sizes fit this model equally well ({0}). Pick the one you know it was made for.",
+    "message": "複数のサイズが同程度に一致（{0}）。正しいものを選んでください。",
     "description": ""
   },
   "Parts.Retarget.Checking": {
-    "message": "Working out which size this was made for\u2026",
+    "message": "元のサイズを検出中…",
     "description": ""
   },
   "Parts.Retarget.Chest": {
@@ -3276,15 +3280,15 @@
     "description": ""
   },
   "Parts.Retarget.Clash.Fmt": {
-    "message": "This mod already has a group (\u0022{0}\u0022) that replaces this model. The new group is set to win over it, so changing sizes there will not change this refit.",
+    "message": "グループ「{0}」もこのモデルを置き換えます。新しいグループが優先されます。",
     "description": ""
   },
   "Parts.Retarget.ClearBody": {
-    "message": "Push the garment clear of the body",
+    "message": "体から布を押し出す",
     "description": ""
   },
   "Parts.Retarget.ClearBody.Tip": {
-    "message": "On: cloth left inside the body anywhere is pushed out of it, not just cloth the refit pushed in.\nUse it when the body shows through the garment after a refit \u2014 a stocking whose mod draws its own\nleg skin over yours is the usual case, since cloth its author buried in the body is no longer hidden.\nOff (the default) leaves cloth the author tucked under the skin exactly where they put it, which is\nright for most garments: it is hidden on purpose, and pulling it out makes the fit worse.",
+    "message": "リフィットが埋めた布だけでなく、埋まっている布をすべて押し出します。\n体が透けるとき（独自の脚肌を持つストッキングなど）に使います。\n既定はオフ：布を肌の下に隠すのは意図的なことが多いためです。",
     "description": ""
   },
   "Parts.Retarget.ClearPreview": {
@@ -3292,7 +3296,7 @@
     "description": ""
   },
   "Parts.Retarget.Exact.Fmt": {
-    "message": "This model\u0027s body mesh is exactly {0}.",
+    "message": "完全一致：{0}。",
     "description": ""
   },
   "Parts.Retarget.Feet": {
@@ -3307,9 +3311,9 @@
     "message": "Body \u2014 {0}",
     "description": ""
   },
-  "Parts.Retarget.Guess.Fmt": {
-    "message": "Best guess: nothing matched exactly, but this one fits closest ({0:F2} mm average). Worth checking.",
-    "description": ""
+  "Parts.Retarget.Guess": {
+    "message": "\u63a8\u5b9a\u3067\u3059\u3002\u78ba\u8a8d\u3057\u3066\u304f\u3060\u3055\u3044\u3002",
+    "description": "Under the Body size tool's \"Made for\" size: the detector's pick is only a guess."
   },
   "Parts.Retarget.Hands": {
     "message": "Hands",
@@ -3319,20 +3323,12 @@
     "message": "Legs",
     "description": ""
   },
-  "Parts.Retarget.Likely.Fmt": {
-    "message": "Very likely \u2014 the closest fit by a clear margin ({0:F2} mm average).",
-    "description": ""
+  "Parts.Retarget.Likely": {
+    "message": "\u307b\u307c\u78ba\u5b9f\u306b\u4e00\u81f4\u3002",
+    "description": "Under the Body size tool's \"Made for\" size: the detector is confident in its pick."
   },
   "Parts.Retarget.LowSnap": {
-    "message": "This model\u0027s body mesh does not match the size it was made for exactly, so the seam where skin meets cloth may not come out perfect.",
-    "description": ""
-  },
-  "Parts.Retarget.Missed.Fmt": {
-    "message": "{0:N0} were too far from the body to follow it, and stayed where they were.",
-    "description": ""
-  },
-  "Parts.Retarget.Moved.Fmt": {
-    "message": "Moved up to {0:F1} mm.",
+    "message": "体メッシュが完全には一致せず、肌の継ぎ目が不完全になる場合があります。",
     "description": ""
   },
   "Parts.Retarget.NoBody": {
@@ -3340,7 +3336,7 @@
     "description": ""
   },
   "Parts.Retarget.NoBodiesForSex.Fmt": {
-    "message": "{0} has no bodies for a {1} character, and this outfit is made for one. A refit cannot change a body's sex.",
+    "message": "{0}には{1}用の体型がありません。リフィットで性別は変えられません。",
     "description": ""
   },
   "Parts.Retarget.Male": {
@@ -3352,11 +3348,11 @@
     "description": ""
   },
   "Parts.Retarget.NoBodyMesh": {
-    "message": "This model carries no body mesh, so the size it was made for cannot be guessed. Pick it yourself.",
+    "message": "体メッシュがなくサイズを検出できません。自分で選んでください。",
     "description": ""
   },
   "Parts.Retarget.NoModel": {
-    "message": "Open a model above to refit it onto another body size.",
+    "message": "上でモデルを開くとリフィットできます。",
     "description": ""
   },
   "Parts.Retarget.OpenInPenumbra": {
@@ -3364,23 +3360,15 @@
     "description": ""
   },
   "Parts.Retarget.OtherLods": {
-    "message": "This model has lower detail levels, which are not refitted \u2014 it will look like the old size from a distance.",
+    "message": "低詳細度モデルはリフィットされません。遠くでは元のサイズのままです。",
     "description": ""
   },
   "Parts.Retarget.PickBody": {
-    "message": "Pick the body mod this garment was made for. Only mods that offer a choice of body models are listed.",
-    "description": ""
-  },
-  "Parts.Retarget.PosedSkin.Fmt": {
-    "message": "{0} of this model's skin mesh(es) are only partly on the body \u2014 a heeled shoe draws its own foot, turned onto the toe \u2014 so they were kept as the author made them instead of being swapped.",
+    "message": "体型 Mod を選んでください。複数の体型モデルを持つ Mod のみ表示されます。",
     "description": ""
   },
   "Parts.Retarget.Preview": {
     "message": "Refit and preview",
-    "description": ""
-  },
-  "Parts.Retarget.Pushed.Fmt": {
-    "message": "{0:N0} pushed back out of the body, up to {1:F2} mm.",
     "description": ""
   },
   "Parts.Retarget.Save": {
@@ -3388,7 +3376,7 @@
     "description": ""
   },
   "Parts.Retarget.Saved.Fmt": {
-    "message": "{0} refit option(s) saved in \u0022{1}\u0022. Penumbra only picks a default for a mod it is adding for the first time, so choose the option there to wear it.",
+    "message": "「{1}」に{0}件のリフィットを保存しました。",
     "description": ""
   },
   "Parts.Retarget.Slot.Fmt": {
@@ -3400,11 +3388,7 @@
     "description": ""
   },
   "Parts.Retarget.Slot.Optional.Tip": {
-    "message": "Fill this in only if the garment reaches here \u2014 a long dress worn in the chest slot\nalso hangs over the legs. Leave it alone for a garment that does not.",
-    "description": ""
-  },
-  "Parts.Retarget.Snapped.Fmt": {
-    "message": "{0:N0} landed on the new body exactly ({1:P0}).",
+    "message": "衣装がここまで届く場合のみ（脚まであるロングドレスなど）入力してください。",
     "description": ""
   },
   "Parts.Retarget.To": {
@@ -3412,7 +3396,7 @@
     "description": ""
   },
   "Parts.Retarget.Undo": {
-    "message": "Remove the last refit",
+    "message": "直前のリフィットを削除",
     "description": ""
   },
   "Parts.Retarget.Unreadable.Fmt": {
@@ -3428,51 +3412,55 @@
     "description": ""
   },
   "Parts.Tool.Retarget.Tip": {
-    "message": "Refit this model onto a different size of the body it was made for.\nThe body\u0027s own change in shape is carried onto the garment, so it keeps\nthe way it sits. Saved as a new option in this mod, leaving the author\u0027s\nown files alone.",
+    "message": "このモデルを別の体型やサイズにリフィットし、新しいオプションとして保存します。",
     "description": ""
   },
   "Parts.Retarget.CheckingPair": {
-    "message": "Checking these two are sizes of the same body\u2026",
+    "message": "サイズが一致するか確認中…",
     "description": ""
   },
   "Parts.Retarget.FindingBodies": {
-    "message": "Looking through your mods for body mods\u2026",
+    "message": "体型 Mod を検索中…",
+    "description": ""
+  },
+  "Parts.Retarget.Baking": {
+    "message": "あなたの種族用モデルを作成中…",
+    "description": ""
+  },
+  "Parts.Retarget.Baked.Fmt": {
+    "message": "{1}モデルが存在しないため、{0}モデルから作成しました。保存するとゲームに必要なメタデータが追加されます。",
+    "description": ""
+  },
+  "Parts.Retarget.BakeFailed.Fmt": {
+    "message": "{0}モデルを作成できませんでした（{1}）。{2}モデルをそのままリフィットします。",
     "description": ""
   },
   "Parts.Retarget.Cloth.Guess.Fmt": {
-    "message": "Best guess from how the cloth sits: it fits {0} most snugly, but clears every size here, so it may simply be loose. Worth checking.",
+    "message": "布の形から推定：{0}。ただ緩いだけの可能性もあり、要確認。",
     "description": ""
   },
   "Parts.Retarget.Cloth.Likely.Fmt": {
-    "message": "Read from how the cloth sits: it fits {0} most snugly without passing into it, and passes into anything larger.",
+    "message": "布の形から：{0}に最も密着。",
     "description": ""
   },
   "Parts.Retarget.TooLittle.Fmt": {
-    "message": "Too little of this model\u0027s body mesh reaches the {0} to tell which size it was made for. If the garment does reach here, choose both sizes yourself \u2014 a long top\u0027s hem over the hips needs them.",
+    "message": "{0}の体メッシュが少なすぎてサイズを検出できません。衣装がここまで届く場合は両方のサイズを選んでください。",
     "description": ""
   },
   "Parts.NoMatches": {
     "message": "Nothing matches.",
     "description": ""
   },
-  "Parts.Retarget.Held.Fmt": {
-    "message": "{0:N0} held where the author put them.",
-    "description": ""
-  },
   "Parts.Retarget.Lock.ListTip": {
-    "message": "Untick a part to hold it where its author put it: the refit leaves it exactly as it is. Useful for things that should not stretch with the body, like a buckle or a piece of jewellery. Clicking a part on the model does the same.",
+    "message": "バックルや装飾品など、作者の配置のまま保ちたいパーツはチェックを外してください。モデル上のクリックでも同じです。",
     "description": ""
   },
   "Parts.Retarget.Lock.SkinTip": {
-    "message": "This is the garment\u0027s own body skin. Holding it keeps it at the old size, so the new body can show through or gap at the edges.",
+    "message": "衣装自身の肌です。保持すると元のサイズのままになり、体が透けたり隙間ができたりします。",
     "description": ""
   },
   "Parts.Retarget.Folded.Fmt": {
-    "message": "{0:N0} triangle(s) still face the wrong way, which shows as a black speck. The two bodies disagree too sharply there for the fit to be smoothed out.",
-    "description": ""
-  },
-  "Parts.Retarget.Laid.Fmt": {
-    "message": "{0:N0} skin points laid onto the new body.",
+    "message": "{0:N0}個の三角形は体型差が大きすぎて反転したままです（黒い斑点）。",
     "description": ""
   },
   "Parts.Retarget.KeepShape": {
@@ -3480,7 +3468,7 @@
     "description": ""
   },
   "Parts.Retarget.KeepShape.Tip": {
-    "message": "Tick for hard pieces — a metal ring, a buckle, a chain. Each piece is moved onto the new body as one\npiece, turned and scaled evenly, instead of being bent to follow the body point by point.\nTicking a row with pieces keeps each piece separately, so a chain's links each keep their shape.\nSmall closed pieces start ticked; untick any that should bend with the body.",
+    "message": "リング・バックル・チェーンなど硬いパーツ向け：曲げずにそのまま移動します。\n小さな閉じたパーツは既定でオンです。",
     "description": ""
   },
   "Parts.Retarget.ReplaceSkin": {
@@ -3496,7 +3484,7 @@
     "description": ""
   },
   "Parts.Retarget.ToMany": {
-    "message": "Refit onto (tick as many sizes as you like)",
+    "message": "リフィット先（複数選択可）",
     "description": ""
   },
   "Parts.Retarget.Working.Fmt": {
@@ -3504,7 +3492,7 @@
     "description": ""
   },
   "Parts.Retarget.MadeHere": {
-    "message": "(made by a refit)",
+    "message": "（リフィットで作成）",
     "description": ""
   },
   "Parts.Retarget.NewGroup": {
@@ -3516,51 +3504,43 @@
     "description": ""
   },
   "Parts.Retarget.SwapShapes.Fmt": {
-    "message": "This garment had {0} shape key(s), which a skin swap does not carry over. Untick \u0022Use the new body\u0027s skin\u0022 to keep them.",
+    "message": "肌の置換によりシェイプキー{0}個が失われました。保持するには「Use the new body's skin」のチェックを外してください。",
     "description": ""
   },
   "Parts.Retarget.SwapSkin.Tip": {
-    "message": "On: the garment's skin for each part of the body being resized is removed and that part's new body\nskin put in its place, so the skin under and around the garment is exactly the body mod's.\nOff: the skin the garment came with is resized instead, keeping any reshaping its author did \u2014 a top\nthat lifts or presses the chest keeps doing so at the new size.",
+    "message": "オン：衣装の肌を新しい体型の肌に置き換えます。\nオフ：衣装自身の肌をリサイズし、造形（プッシュアップ、Skindentingなど）を保ちます。",
     "description": ""
   },
   "Parts.Retarget.CutHidden": {
-    "message": "Remove skin that can't be seen",
+    "message": "隠れた肌を除去",
     "description": ""
   },
   "Parts.Retarget.CutHidden.Tip": {
-    "message": "On: the new body's skin is left out wherever the garment's author deleted theirs \u2014 usually skin under\nthe cloth, so it cannot poke through.\nOff: the new body's skin is put in whole. Try this if the refit leaves holes where skin should show.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapKeptMeshes.Fmt": {
-    "message": "{0} skin mesh(es) belong to a part of the body that is not being resized, and were left as they are.",
-    "description": ""
-  },
-  "Parts.Retarget.SwapSlots.Fmt": {
-    "message": "Skin swapped for the new body\u0027s where it is being resized: {0:N0} of the garment\u0027s skin triangles out, {1:N0} of the body\u0027s in.",
+    "message": "作者が肌を削除した箇所（通常は布の下）には新しい肌を入れません。\n穴ができる場合はオフにしてください。",
     "description": ""
   },
   "Parts.Retarget.NeedFromRequired.Fmt": {
-    "message": "{0}: choose the size the garment was made for.",
+    "message": "{0}：元のサイズを選んでください。",
     "description": ""
   },
   "Parts.Retarget.SlotSittingOut": {
-    "message": "Not being refitted \u2014 choose the size this part was made for, above, and it will be.",
+    "message": "リフィット対象外です。含めるには「元の体型 Mod」でサイズを選んでください。",
     "description": ""
   },
   "Parts.Retarget.NeedTo.Fmt": {
-    "message": "{0}: choose a size to refit onto.",
+    "message": "{0}：リフィット先のサイズを選んでください。",
     "description": ""
   },
   "Parts.Retarget.OtherParts": {
-    "message": "Other parts of the body (optional)",
+    "message": "その他の部位（任意）",
     "description": ""
   },
   "Parts.Retarget.OtherPartsInUse.Fmt": {
-    "message": "Other parts of the body \u2014 {0} being refitted",
+    "message": "その他の部位（{0}件使用中）",
     "description": ""
   },
   "Parts.Retarget.RefusedHold": {
-    "message": "One of the chosen pairs cannot be refitted \u2014 see the message under it.",
+    "message": "選んだ組み合わせはリフィットできません（上記参照）。",
     "description": ""
   },
   "Parts.Move.ClearPolygons": {
@@ -3599,32 +3579,16 @@
     "message": "Shrink",
     "description": ""
   },
-  "Parts.Retarget.ExtrasDropped.Fmt": {
-    "message": "The old body\u0027s piercings and pubic hair ({0:N0} triangles) were left out.",
-    "description": ""
-  },
   "Parts.Retarget.FromBody": {
-    "message": "Made for body mod",
+    "message": "元の体型 Mod",
     "description": ""
   },
   "Parts.Retarget.FromBody.Tip": {
-    "message": "The body mod this outfit was made for. Pick the same one it is being refitted onto to refit between its sizes.\nChoose another to move the outfit from that body to this one: its cloth then also takes the new body\u0027s\nbone weights, so it moves with the new body. Skirt chains and other bones of the outfit\u0027s own keep theirs.",
-    "description": ""
-  },
-  "Parts.Retarget.Reweighted.Fmt": {
-    "message": "{0:N0} cloth points now move with the new body\u0027s bones.",
-    "description": ""
-  },
-  "Parts.Retarget.Trimmed.Fmt": {
-    "message": "{0:N0} of them had more bones than a point can follow; the weakest were left out.",
-    "description": ""
-  },
-  "Parts.Retarget.Unplaced.Fmt": {
-    "message": "{0:N0} bone weights could not be written and were left out.",
+    "message": "リフィット先と同じなら、そのサイズ間でリフィットします。\n違う体型を選ぶと、布も新しい体型のボーンウェイトを引き継ぎます（衣装自身のボーンはそのまま）。",
     "description": ""
   },
   "Parts.Retarget.ToBody": {
-    "message": "Refit onto body mod",
+    "message": "リフィット先の体型 Mod",
     "description": ""
   },
   "Settings.ReduceMotion": {
@@ -3660,23 +3624,23 @@
     "description": ""
   },
 "Parts.Live.PickedNotGear.Fmt": {
-    "message": "{0} is not a piece of equipment, so there is nothing to refit onto another body.",
+    "message": "{0}は装備ではないため、リフィットできません。",
     "description": ""
   },
   "Parts.Live.PickGame.Tip": {
-    "message": "Click a garment on your character to open it here \u2014 vanilla gear as well as a mod\u0027s.",
+    "message": "キャラクター上の衣装をクリックして開きます。バニラでもMod適用済みでも可。",
     "description": ""
   },
   "Parts.Retarget.FromVanilla": {
-    "message": "The vanilla body",
+    "message": "バニラの体型",
     "description": ""
   },
   "Parts.Retarget.SaveNewMod.Fmt": {
-    "message": "Saved into a new mod, \u0022{0}\u0022.",
+    "message": "新しいMod「{0}」に保存しました。",
     "description": ""
   },
   "Parts.Vanilla.Caveats": {
-    "message": "Vanilla gear leans on shape keys and lower detail levels, and a refit carries neither: expect the sleeves and hems where they meet other pieces to change, and the old size to show at a distance. Its textures are vanilla and stay that way.",
+    "message": "リフィットはシェイプキーや低詳細度モデルを引き継ぎません。継ぎ目の裾がずれたり、遠方では元のサイズのままだったりします。",
     "description": ""
   },
   "Parts.Vanilla.Header": {
@@ -3684,15 +3648,15 @@
     "description": ""
   },
   "Parts.Vanilla.OnlyRetarget": {
-    "message": "This is vanilla gear \u2014 there is no mod file to edit. Refit it onto your body first; that makes a mod, which the other tools can then work on.",
+    "message": "バニラ装備にはModファイルがありません。先にリフィットして他のツール用のModを作成してください。",
     "description": ""
   },
   "Parts.Vanilla.Open.Fmt": {
-    "message": "{0} \u2014 vanilla, with no mod behind it.",
+    "message": "{0}（バニラ）",
     "description": ""
   },
   "Parts.Vanilla.SaveNote": {
-    "message": "Saving makes a new mod for this item, switched on for you, holding the refit and an \u0022Original\u0022 option that gives the vanilla one back.",
+    "message": "保存するとリフィットと「Original」オプションを含む新しいModが作成されます。",
     "description": ""
   },
   "Refit.Error.NoName.Fmt": {
@@ -3716,11 +3680,11 @@
     "description": ""
   },
   "Parts.Retarget.SaveToMod.Tip": {
-    "message": "Where the refitted model goes. This mod puts it beside the author\u0027s own sizes, so it joins any size switch they already built \u2014 but their next update takes it away again. A new mod keeps it separate, survives their updates, and can be switched off or deleted on its own.",
+    "message": "このMod：作者のサイズに加わりますが、次の更新で失われます。\n新しいMod：別に保存され、更新の影響を受けません。",
     "description": ""
   },
   "Parts.Retarget.SaveToNewMod": {
-    "message": "A new mod of its own",
+    "message": "新しいMod",
     "description": ""
   },
   "Parts.Retarget.SaveToThisMod": {
@@ -3728,7 +3692,7 @@
     "description": ""
   },
 "Parts.Vanilla.Worn.Tip": {
-    "message": "You are wearing this and no mod provides it. Open it to refit it onto your body \u2014 that makes a mod of its own for it.",
+    "message": "装着中でMod未適用です。開くと自分の体型にリフィットして新しいModにできます。",
     "description": ""
   },
   "Parts.Vanilla.WornSuffix": {
@@ -3776,31 +3740,31 @@
     "description": ""
   },
   "Parts.Retarget.Guide.Title": {
-    "message": "Body size：いくつかのヒント",
+    "message": "Body size のヒント",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip1": {
-    "message": "アップスケールは、衣装が元々作られた体型 Mod をインストールしておくと最もうまくいきます。",
+    "message": "衣装の元になった体型 Mod を入れておくと最も上手くいきます。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip2": {
-    "message": "ドレスのように体の複数の部位を覆う衣装では、覆っているすべての部位について、元の体型 Mod とサイズ、適用先の体型 Mod とサイズを選んでください。",
+    "message": "ドレスなど複数部位を覆う衣装では、各部位でサイズを設定してください。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip3": {
-    "message": "衣装に Skindenting やプッシュアップなど標準的でない造形がある場合は、「Use the new body's skin」のチェックを外してください。ただし二つの体型のスケルトンが異なる場合は、新しい体型の肌が必須なのでチェックしたままにしてください。",
+    "message": "体型のスケルトンが同じなら、「Use the new body's skin」のチェックを外すとSkindentingやプッシュアップの造形を保てます。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip4": {
-    "message": "プレビューの後は忘れずに保存してください。「Save as a new option」を押すまでプレビューは残りません。",
+    "message": "「Save as a new option」を押すまでプレビューは保存されません。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip5": {
-    "message": "サイズ変更後の細部は、外に引く などスタジオの他のブラシで仕上げられます。硬い形状のパーツには 移動 を使ってください。",
+    "message": "仕上げは他のブラシ（外に引く など）で。硬いパーツには 移動 を使います。",
     "description": ""
   },
   "Parts.Retarget.Guide.Tip6": {
-    "message": "可能であれば、適用先よりも小さいサイズから始めてください。",
+    "message": "できれば小さいサイズから大きいサイズへリフィットしてください。",
     "description": ""
   },
   "Parts.Retarget.Guide.Ok": {
