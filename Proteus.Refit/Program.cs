@@ -38,9 +38,10 @@ internal static class Program
                       [--slot _top] [--race 0201] [--legs-from <rel>]
                       [--legs <label>=<size word>,... | --legs-to <rel in the target mod>]
         Proteus.Refit --list --body-root <body mod> [--slot _top]
+        Proteus.Refit --inspect --garment <model.mdl>
         Proteus.Refit --detect --garment <xs.mdl> --body-root <body mod> [--slot _top] [--race 0201]
         Proteus.Refit --finish --garment <in.mdl> --out <out.mdl> [--body-root <body mod> [--from <rel|auto>]]
-                      [--slot _top] [--race 0201]
+                      [--slot _top] [--race 0201] [--tag-legs <rel|auto>]
         """;
 
     private static int Main(string[] args)
@@ -52,6 +53,7 @@ internal static class Program
         {
             var opts = Parse(args);
             if (opts.ContainsKey("list")) return List(opts);
+            if (opts.ContainsKey("inspect")) return Inspect(opts);
             if (opts.ContainsKey("detect")) return Detect(opts);
             if (opts.ContainsKey("finish")) return Finish(opts);
             return Run(opts);
@@ -67,6 +69,26 @@ internal static class Program
             Console.Error.WriteLine(ex.ToString());
             return 1;
         }
+    }
+
+    /// <summary>Each LOD0 submesh of a model — mesh.submesh, material, triangles, tags — to check what a build kept.</summary>
+    private static int Inspect(Dictionary<string, string> opts)
+    {
+        var model = ModelPartReader.Read(File.ReadAllBytes(Required(opts, "garment")))
+                 ?? throw new UsageException("The model could not be read.");
+        foreach (var part in model.Parts.Where(p => p.Island < 0))
+        {
+            var tags = Enumerable.Range(0, Math.Min(32, model.AttributeNames.Count))
+                                 .Where(i => (part.AttributeMask & (1u << i)) != 0)
+                                 .Select(i => model.AttributeNames[i]);
+            // Wind: how many of the part's vertices carry any, and the strongest — a refit must copy it through.
+            var verts = part.Triangles.Distinct().ToList();
+            int windy = model.Wind.Length == 0 ? 0 : verts.Count(v => model.Wind[v] > 0f);
+            float peak = model.Wind.Length == 0 || verts.Count == 0 ? 0f : verts.Max(v => model.Wind[v]);
+            Console.WriteLine($"{part.Mesh}.{part.Submesh}\t{part.Material}\t{part.TriangleCount}\t{string.Join(",", tags)}" +
+                              $"\twind {windy}/{verts.Count} max {peak:0.00}");
+        }
+        return 0;
     }
 
     private static int List(Dictionary<string, string> opts)
@@ -176,6 +198,50 @@ internal static class Program
             else lodRefusal = why;
         }
 
+        // A full-body piece: its own skin runs down the legs, on neither slot's body alone, so the swap kept it
+        // untagged. The legs body's calf and knee tags are carried onto it triangle by triangle, which is what lets
+        // boots hide the skin under their shafts.
+        object? legTags = null;
+        string? legTagsSkipped = null;
+        if (opts.TryGetValue("tag-legs", out var tagLegs))
+        {
+            var catalog = BodySizeCatalog.Read(Required(opts, "body-root"));
+            string? race = opts.GetValueOrDefault("race", "0201");
+            BodyOption? legsBody = null;
+            string confidence = "Given";
+            if (tagLegs == "auto")
+            {
+                // Optional work on top of a finish already done: a legs body that cannot be found skips the tagging, and
+                // the swapped, trimmed model is still written.
+                try
+                {
+                    legsBody = ModelPartReader.Read(model) is { } parts
+                        ? DetectSource(catalog, "_dwn", parts, model, race, out confidence)
+                        : throw new UsageException("the finished model could not be read back");
+                }
+                catch (UsageException ex)
+                {
+                    try
+                    {
+                        legsBody = Find(catalog, "_dwn", DefaultTagLegs);
+                        confidence = $"Fallback ({ex.Message})";
+                    }
+                    catch (UsageException fallback)
+                    {
+                        legTagsSkipped = $"{ex.Message} {fallback.Message}";
+                    }
+                }
+            }
+            else legsBody = Find(catalog, "_dwn", tagLegs);
+
+            if (legsBody != null)
+            {
+                model = SkinTagTransfer.Transfer(model, File.ReadAllBytes(catalog.PathOf(legsBody)), LegTags, out var tagReport);
+                legTags = new { from = legsBody.Rel, confidence, tagged = tagReport.Tagged, skinTriangles = tagReport.SkinTriangles };
+                if (tagReport.Tagged.Values.All(n => n == 0)) legTagsSkipped = "no skin triangle sits on the legs body's calf or knee";
+            }
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outPath))!);
         File.WriteAllBytes(outPath, model);
         Console.WriteLine(JsonSerializer.Serialize(new
@@ -186,9 +252,17 @@ internal static class Program
             lodRefusal,
             skin,
             skinSkipped,
+            legTags,
+            legTagsSkipped,
         }, new JsonSerializerOptions { WriteIndented = true }));
         return 0;
     }
+
+    /// <summary>The tags <c>--tag-legs</c> carries: the knee (<c>atr_hiz</c>) and the calf/shin (<c>atr_sne</c>).</summary>
+    private static readonly string[] LegTags = ["atr_hiz", "atr_sne"];
+
+    /// <summary>The legs body <c>--tag-legs auto</c> falls back to when the garment's cannot be told.</summary>
+    private const string DefaultTagLegs = "default legs - smallclothes/sfw small.mdl";
 
     private static int Run(Dictionary<string, string> opts)
     {
@@ -348,7 +422,7 @@ internal static class Program
             if (!args[i].StartsWith("--", StringComparison.Ordinal))
                 throw new UsageException($"Unexpected argument \"{args[i]}\".");
             string key = args[i][2..];
-            opts[key] = key is "list" or "detect" or "finish" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
+            opts[key] = key is "list" or "detect" or "finish" or "inspect" ? "" : i + 1 < args.Length ? args[++i] : throw new UsageException($"--{key} needs a value.");
         }
         return opts;
     }

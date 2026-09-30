@@ -22,6 +22,12 @@ internal static partial class BodyRetarget
     internal const float OnBodyShare = 0.95f;
 
     /// <summary>
+    /// How much of a skin mesh has to sit on one slot's body alone for that slot's skin to go in with it (5%): enough
+    /// that it is a part of the body the garment draws — a dress's legs — not the few vertices along a waist seam.
+    /// </summary>
+    internal const float SpanShare = 0.05f;
+
+    /// <summary>
     /// How close the new body must come to the garment's own skin for that face to be one the author kept (4 mm). The
     /// garment's skin has just been laid onto the new body, so a face the author kept sits ON the body mod's own — the
     /// two are the same mesh where both draw — while a face the author deleted has centimetres of cloth over it.
@@ -109,6 +115,8 @@ internal static partial class BodyRetarget
                                     .ToList();
         var dropped = new HashSet<int>();
         var claimedBy = new HashSet<int>();   // indices into swappable
+        var mostOf = new HashSet<int>();      // slots some mesh lies MOSTLY on
+        var reachedOnto = new HashSet<int>(); // slots a mesh only reaches onto (a dress's legs, a long top's hips)
         string? skinMaterial = null;
         int removed = 0, kept = 0, posed = 0;
         foreach (var mesh in skinMeshes)
@@ -141,7 +149,22 @@ internal static partial class BodyRetarget
                 continue;
             }
             dropped.Add(mesh.Key);
+            // Every slot the mesh really spans, not only the one most of it lies on: a full-body dress draws torso and
+            // legs in ONE skin mesh, and handing it to the chest alone put back the chest's skin and nothing below the
+            // hips — every size but the hand-made one came out legless. A slot counts when enough of the mesh sits on its
+            // body and on no other; the vertices along the waist seam sit on both and decide nothing.
             claimedBy.Add(best);
+            mostOf.Add(best);
+            for (int s = 0; s < surfaces.Count && surfaces.Count > 1; s++)
+            {
+                if (s == best) continue;
+                int only = verts.Count(v => surfaces[s].Nearest(At(model, v), SwapOnBody, out _)
+                                         && !surfaces.Where((_, o) => o != s)
+                                                     .Any(o => o.Nearest(At(model, v), SwapOnBody, out _)));
+                if (only < verts.Count * SpanShare) continue;
+                claimedBy.Add(s);
+                reachedOnto.Add(s);
+            }
             skinMaterial ??= mesh.First().Material;
             removed += mesh.Sum(p => p.Triangles.Length / 3);
         }
@@ -164,14 +187,19 @@ internal static partial class BodyRetarget
         // deleting its faces; the body mod ships the body whole. Put in whole, the shoulder the author deleted comes
         // back through the jacket — so the body mod's skin only draws where the garment's skin drew. Unless the user
         // turned that off, and the body goes in whole.
-        var drawn = cutHidden ? new BodySurface(model, BodySurface.CellFor(MeanEdgeOf(model))) : null;
-        var drawnEdges = cutHidden ? SkinEdges.Of(model) : null;
+        // A slot the garment only REACHES onto is cut whatever the setting: whole, a long top's hips would bring the
+        // entire legs body down to the ankles into the top's model, drawing through whatever pants are worn.
+        var alwaysCut = new HashSet<int>(reachedOnto.Except(mostOf));
+        bool anyCut = cutHidden || alwaysCut.Count > 0;
+        var drawn = anyCut ? new BodySurface(model, BodySurface.CellFor(MeanEdgeOf(model))) : null;
+        var drawnEdges = anyCut ? SkinEdges.Of(model) : null;
         var cuts = new Dictionary<int, Dictionary<int, HashSet<ushort>>?>();
         int cutTris = 0, keptTris = 0;
         foreach (int s in claimedBy)
         {
             int these = 0, gone = 0;
-            cuts[s] = drawn == null || drawn.IsEmpty ? null : CutLike(drawn, drawnEdges!, swappable[s].TargetModel!,
+            bool cutThis = cutHidden || alwaysCut.Contains(s);
+            cuts[s] = !cutThis || drawn == null || drawn.IsEmpty ? null : CutLike(drawn, drawnEdges!, swappable[s].TargetModel!,
                                                                       swappable[s].TargetHidden, out these, out gone);
             keptTris += cuts[s] == null ? SkinTriangles(swappable[s].Target) : these;
             cutTris += gone;
