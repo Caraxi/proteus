@@ -702,6 +702,10 @@ internal static partial class BodyRetarget
                     foreach (int v in piece)
                         if (v >= 0 && v < sets.NodeOf.Length) stay[sets.NodeOf[v]] = true;
             }
+            // The underside of the breast first, every layer together; then whatever face is still through.
+            // Tops only: on legs, skin facing down and forward is the crease under the belly, not a breast.
+            if (!Tuned.NoUnderbustLift && drawn != null && garmentSlot == "_top")
+                pushed += LiftUnderbust(faceCheck, drawn, nodeDelta, pushedBy, ref worstPush, stay);
             pushed += ClearFaces(faceCheck, nodeDelta, pushedBy, ref worstPush, stay);
         }
 

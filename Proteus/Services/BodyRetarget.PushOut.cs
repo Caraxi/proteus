@@ -222,6 +222,15 @@ internal static partial class BodyRetarget
         /// <summary>Per triangle of <see cref="Tris"/>: every corner is cloth.</summary>
         public readonly List<bool> IsCloth = [];
 
+        /// <summary>The nodes the push-out considers: the only ones a lift may move.</summary>
+        public readonly bool[] Considered;
+
+        /// <summary>Each node's neighbours (<see cref="Sets.Adj"/>).</summary>
+        public List<int>[] Adj => sets.Adj;
+
+        /// <summary>How many nodes the garment has.</summary>
+        public int NodeCount => sets.NodeCount;
+
 
         public FaceCheck(Sets sets, IReadOnlyList<int> nodes, TargetBody before, TargetBody after, float[] authored,
                          bool clearBody)
@@ -232,7 +241,7 @@ internal static partial class BodyRetarget
             drawn = Grid(after);
             var was = clearBody ? null : Grid(before);
 
-            var considered = new bool[sets.NodeCount];
+            var considered = Considered = new bool[sets.NodeCount];
             foreach (int n in nodes) considered[n] = true;
 
             // Edges two DIFFERENT cloth faces share. A skin point that lands on one is still under the cloth — the
@@ -301,8 +310,8 @@ internal static partial class BodyRetarget
         {
             var (a, b, c) = Tris[t];
             var (ea, eb, ec) = triEdges[t];
-            return Through(drawn, Placed(sets, nodeDelta, a), Placed(sets, nodeDelta, b), Placed(sets, nodeDelta, c),
-                           ea, eb, ec).Depth;
+            return MathF.Max(0f, Through(drawn, Placed(sets, nodeDelta, a), Placed(sets, nodeDelta, b),
+                                         Placed(sets, nodeDelta, c), ea, eb, ec).Depth);
         }
 
         /// <summary>Facing the other way from how the author drew it — the push's own fold test.</summary>
@@ -344,7 +353,8 @@ internal static partial class BodyRetarget
         }
 
         // How far the skin is through the face abc — the deepest point of it on the outside — and which way is out.
-        // Zero when no skin is through.
+        // Negative when the skin under the face is all behind it (the face's clearance); zero, with no way out, when no
+        // skin is under it at all.
         private static (float Depth, Vector3 Outward) Through(Dictionary<(int, int, int), List<(Vector3 At, Vector3 Normal)>> grid,
                                                               Vector3 pa, Vector3 pb, Vector3 pc,
                                                               bool edgeA, bool edgeB, bool edgeC)
@@ -384,7 +394,8 @@ internal static partial class BodyRetarget
             // through.
             var outward = Vector3.Dot(face, facing) >= 0f ? face : -face;
 
-            float deepest = 0f;
+            // Signed: negative when every skin point is behind the face, by how much — the face's clearance.
+            float deepest = float.NegativeInfinity;
             foreach (var (offset, n) in under)
             {
                 // Skin that faces the other way is the far side of a fold, not the surface this face lies over; and on
@@ -393,7 +404,7 @@ internal static partial class BodyRetarget
                 if (Vector3.Dot(n, outward) < FaceFacing) continue;
                 deepest = MathF.Max(deepest, Vector3.Dot(offset, outward));
             }
-            return (deepest, outward);
+            return float.IsNegativeInfinity(deepest) ? (0f, default) : (deepest, outward);
         }
     }
 
@@ -660,6 +671,153 @@ internal static partial class BodyRetarget
 
     /// <summary>Rounds <see cref="ClearFaces"/> gets.</summary>
     private const int ClearFaceRounds = 8;
+
+    /// <summary>
+    /// How far off the underside of the breast <see cref="LiftUnderbust"/> holds the cloth, whether or not the skin is
+    /// through it yet (1 mm).
+    /// <para/>
+    /// Everywhere else a face is only pushed once the skin is THROUGH it, and only back to the author's own standoff. Under
+    /// a large breast that left the cloth resting on the skin: refitted onto Rue+ and YAB+ Large, "Sirius" had 166
+    /// underbust vertices within half a millimetre of the skin and 422 faces it came up to 0.7 mm through, where Neolithe,
+    /// Tre and Bibo+ Large all came out 1-2 mm off. The breast's underside is where a pose presses skin and cloth together,
+    /// so resting on it is clipping as soon as the character moves. User's judgement in game: "it just needs to come down
+    /// 1 mm".
+    /// </summary>
+    internal const float UnderbustClearance = 1e-3f;
+
+    /// <summary>
+    /// Whether a face whose way out is <paramref name="outward"/> lies over the underside of the breast: facing down
+    /// (more than about 25° below level) and forward, so the underside of an arm or the armpit, which face down but
+    /// sideways, are not counted.
+    /// </summary>
+    internal static bool IsUnderbust(Vector3 outward) => outward.Y < -0.4f && outward.Z > 0.1f;
+
+    /// <summary>How far round a face that needs lifting <see cref="LiftUnderbust"/> lifts the cloth with it (6 mm):
+    /// past the thickness of a lined corset, so its lining and shell go up together.</summary>
+    internal const float UnderbustLiftReach = 0.006f;
+
+    /// <summary>How much of the gap between a lifted node and the cloth in front of it <see cref="LiftUnderbust"/> keeps
+    /// at most (0.5 mm).</summary>
+    internal const float UnderbustLayerGap = 0.0005f;
+
+    /// <summary>Rounds of smoothing <see cref="LiftUnderbust"/> gives the lift, so it fades in rather than stepping.</summary>
+    private const int UnderbustLiftSmoothRounds = 3;
+
+    /// <summary>
+    /// Hold the cloth over the underside of the breast <see cref="UnderbustClearance"/> off the skin, every layer of it
+    /// in its order.
+    /// <para/>
+    /// Each considered cloth node over the underside of the breast closer than that to the skin is lifted to it, along
+    /// the skin's normal. Cloth within <see cref="UnderbustLiftReach"/> IN FRONT of a lifted node — the shell over a
+    /// lining — takes as much of that lift as would otherwise close the gap between them, so the layers keep their order
+    /// without everything being raised. The lift is then smoothed over the cloth, never below what a node itself needs,
+    /// so it fades in rather than stepping. <see cref="ClearFaces"/> runs next for any face middle still through.
+    /// <para/>
+    /// Not through <see cref="ClearFaces"/>: there each corner moves on its own and its layer guard puts back any push
+    /// that crosses other cloth, and under the breast that was nearly all of them — on "Sirius" refitted onto Rue+ Large,
+    /// 823 of the lifts were put back and the 200 underbust vertices resting on the skin did not move. Sized from each
+    /// face's deepest point instead of each vertex, and spread at full strength 6 mm round, the lift overshot: the median
+    /// underbust vertex went from 1.0 mm off the skin to 3.3.
+    /// </summary>
+    /// <param name="drawn">The skin drawn under the garment — what the clearance is measured from.</param>
+    /// <returns>How many nodes it lifted.</returns>
+    internal static int LiftUnderbust(FaceCheck check, TargetBody drawn, Vec3[] nodeDelta, float[] pushedBy,
+                                      ref float worst, bool[]? stay = null)
+    {
+        int count = check.NodeCount;
+        var need = new float[count];
+        var dir = new Vector3[count];
+
+        // What each node over the underside of the breast needs to stand the clearance off it.
+        var seeds = new List<int>();
+        for (int n = 0; n < count; n++)
+        {
+            if (!check.Considered[n]) continue;
+            var p = check.At(n, nodeDelta);
+            if (!drawn.Deepest(p, PushProbeRange, out var hit) || !IsUnderbust(hit.Normal)) continue;
+            float s = Vector3.Dot(p - hit.Point, hit.Normal);
+            if (s >= UnderbustClearance || s < -ClearDepth) continue;   // clear already, or buried on purpose
+            need[n] = UnderbustClearance - s;
+            dir[n] = hit.Normal;
+            seeds.Add(n);
+        }
+        if (seeds.Count == 0) return 0;
+
+        // Cloth in front of a lifted node goes up by as much as would otherwise close the gap.
+        var grid = new Dictionary<(int, int, int), List<int>>();
+        (int, int, int) Cell(Vector3 p) => ((int)MathF.Floor(p.X / UnderbustLiftReach),
+                                            (int)MathF.Floor(p.Y / UnderbustLiftReach),
+                                            (int)MathF.Floor(p.Z / UnderbustLiftReach));
+        for (int n = 0; n < count; n++)
+        {
+            if (!check.Considered[n]) continue;
+            var c = Cell(check.At(n, nodeDelta));
+            if (!grid.TryGetValue(c, out var bucket)) grid[c] = bucket = [];
+            bucket.Add(n);
+        }
+        var lift = (float[])need.Clone();
+        var way = (Vector3[])dir.Clone();
+        foreach (int s in seeds)
+        {
+            var at = check.At(s, nodeDelta);
+            var (cx, cy, cz) = Cell(at);
+            for (int x = cx - 1; x <= cx + 1; x++)
+            for (int y = cy - 1; y <= cy + 1; y++)
+            for (int z = cz - 1; z <= cz + 1; z++)
+            {
+                if (!grid.TryGetValue((x, y, z), out var bucket)) continue;
+                foreach (int m in bucket)
+                {
+                    var off = check.At(m, nodeDelta) - at;
+                    float ahead = Vector3.Dot(off, dir[s]);
+                    // In front (not beside, which the smoothing answers) and within reach.
+                    if (ahead <= 0f || ahead > UnderbustLiftReach
+                        || (off - dir[s] * ahead).LengthSquared() > ahead * ahead) continue;
+                    // Up to UnderbustLayerGap of the gap is kept, so a shell a hair over its lining does not end up
+                    // lying on it.
+                    float carry = need[s] - ahead + MathF.Min(ahead, UnderbustLayerGap);
+                    if (carry <= lift[m]) continue;
+                    lift[m] = carry;
+                    way[m] = dir[s];
+                }
+            }
+        }
+
+        // Smoothed over the cloth, out onto the neighbours too, so the lift fades in rather than stepping; never below
+        // what a node needs or was carried.
+        var floor = (float[])lift.Clone();
+        for (int round = 0; round < UnderbustLiftSmoothRounds; round++)
+        {
+            var next = (float[])lift.Clone();
+            for (int n = 0; n < count; n++)
+            {
+                if (!check.Considered[n] || check.Adj[n].Count == 0) continue;
+                float sum = 0f, most = 0f;
+                int from = -1;
+                foreach (int m in check.Adj[n])
+                {
+                    sum += lift[m];
+                    if (lift[m] > most) { most = lift[m]; from = m; }
+                }
+                if (most <= 0f) continue;
+                next[n] = MathF.Max(floor[n], 0.5f * lift[n] + 0.5f * sum / check.Adj[n].Count);
+                if (way[n] == default && from >= 0) way[n] = way[from];
+            }
+            lift = next;
+        }
+
+        int lifted = 0;
+        for (int n = 0; n < count; n++)
+        {
+            if (lift[n] <= 0f || way[n] == default || (stay != null && stay[n])) continue;
+            var d = way[n] * lift[n];
+            nodeDelta[n] = new Vec3(nodeDelta[n].X + d.X, nodeDelta[n].Y + d.Y, nodeDelta[n].Z + d.Z);
+            pushedBy[n] += lift[n];
+            if (pushedBy[n] > worst) worst = pushedBy[n];
+            lifted++;
+        }
+        return lifted;
+    }
 
     /// <summary>
     /// Clear what the push-out leaves: skin still through the MIDDLE of a cloth face whose corners may all be clear.
