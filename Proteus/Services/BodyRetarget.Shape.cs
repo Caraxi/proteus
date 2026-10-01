@@ -17,10 +17,13 @@ internal static partial class BodyRetarget
     /// <param name="NoSettle">Switch <see cref="Settle"/> off: leave whatever the push-out could not clear.</param>
     /// <param name="NoFaceSettle">Settle vertices only, leaving skin the push gave up on through a face's middle.</param>
     /// <param name="NoLayerGuard">Let <see cref="ClearFaces"/> push one layer of cloth through another.</param>
+    /// <param name="NoWeightSmooth">Leave each cloth vertex's new weights as its own lookup gave them
+    /// (see <see cref="SmoothWeights"/>).</param>
     internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
                                   float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
                                   float CopyTolerance = CopyToleranceDefault, bool NoGiveUp = false,
-                                  bool NoSettle = false, bool NoFaceSettle = false, bool NoLayerGuard = false);
+                                  bool NoSettle = false, bool NoFaceSettle = false, bool NoLayerGuard = false,
+                                  bool NoWeightSmooth = false);
 
     private static readonly Tuning DefaultTuning = new();
 

@@ -220,6 +220,9 @@ internal static partial class BodyRetarget
             if (cut) trimmed++;
         }
 
+        // Smoothed before the layers are paired, so partners still come out identical.
+        if (acrossBodies && !tuned.NoWeightSmooth) SmoothWeights(model, own, result, bodyBones, held);
+
         reweighted += KeepLayersTogether(model, own, wasAt, result, held);
 
         // The garment's own body mesh. It IS the body, so it takes the new body's weights OUTRIGHT rather than the
@@ -478,6 +481,139 @@ internal static partial class BodyRetarget
             result[v] = [.. averaged];
         }
         return added;
+    }
+
+    /// <summary>Rounds of <see cref="SmoothWeights"/>.</summary>
+    internal const int WeightSmoothRounds = 2;
+
+    /// <summary>How far each round takes a vertex's body weights toward its neighbours' (half way).</summary>
+    internal const float WeightSmoothRate = 0.5f;
+
+    /// <summary>
+    /// Ease the new body weights of the cloth toward their neighbours', a little: <see cref="WeightSmoothRounds"/>
+    /// rounds, each <see cref="WeightSmoothRate"/> of the way.
+    /// <para/>
+    /// Every cloth vertex looks the bodies up on its own, and two neighbours can land either side of something sharp in
+    /// that lookup — a crease under the bust, the edge of a triangle of a coarse body — and come out rigged noticeably
+    /// apart. Still, nothing shows; posed, the cloth between them stretches and creases in patches. Smoothing only the
+    /// BODY share keeps every bone the garment brings itself (a skirt chain, a cape) exactly as authored, and each
+    /// neighbour counts by the shape of its body share, not its size, so a vertex half on a skirt chain does not drag its
+    /// neighbours' body weights down. Neighbours are found across texture seams, which split one place into several
+    /// vertices, by welding them on position. Cloth the lookup left alone (beyond the bodies' reach) is a neighbour as
+    /// authored but never moves itself.
+    /// <para/>
+    /// Between two body mods only, onto plain and YAS rigs alike: within one body mod the author's weights stand and
+    /// there is nothing new to smooth.
+    /// </summary>
+    /// <param name="result">New weights per vertex, null where the author's stand. Updated in place.</param>
+    private static void SmoothWeights(ModelParts model, XivLiveMesh.SkinnedMesh own, (string Bone, float W)[]?[] result,
+                                      IReadOnlySet<string> bodyBones, IReadOnlySet<int>? held)
+    {
+        int vc = model.Positions.Length / 3;
+
+        // One node per place, so a seam's split vertices smooth as one and stay identical.
+        var nodeOf = new int[vc];
+        Array.Fill(nodeOf, -1);
+        var byPlace = new Dictionary<(int, int, int), int>();
+        var members = new List<List<int>>();
+        foreach (int v in ClothVertices(model))
+        {
+            var key = ((int)MathF.Round(model.Positions[v * 3] * 1e5f), (int)MathF.Round(model.Positions[v * 3 + 1] * 1e5f),
+                       (int)MathF.Round(model.Positions[v * 3 + 2] * 1e5f));
+            if (!byPlace.TryGetValue(key, out int node))
+            {
+                byPlace[key] = node = members.Count;
+                members.Add([]);
+            }
+            nodeOf[v] = node;
+            members[node].Add(v);
+        }
+        int nodes = members.Count;
+        if (nodes == 0) return;
+
+        var adj = new HashSet<int>[nodes];
+        for (int n = 0; n < nodes; n++) adj[n] = [];
+        foreach (var part in model.Parts)
+        {
+            if (part.Island >= 0 || SecondSkinWriter.IsBodySkinMaterial(part.Material)) continue;
+            for (int t = 0; t + 2 < part.Triangles.Length; t += 3)
+            {
+                int a = part.Triangles[t], b = part.Triangles[t + 1], c = part.Triangles[t + 2];
+                if (a < 0 || b < 0 || c < 0 || a >= vc || b >= vc || c >= vc) continue;
+                int na = nodeOf[a], nb = nodeOf[b], nc = nodeOf[c];
+                if (na < 0 || nb < 0 || nc < 0) continue;
+                if (na != nb) { adj[na].Add(nb); adj[nb].Add(na); }
+                if (nb != nc) { adj[nb].Add(nc); adj[nc].Add(nb); }
+                if (na != nc) { adj[na].Add(nc); adj[nc].Add(na); }
+            }
+        }
+
+        // Per node: the whole influence list now (new where reweighted, else as authored), and whether it may move.
+        var now = new List<(string Bone, float W)>[nodes];
+        var moves = new bool[nodes];
+        for (int n = 0; n < nodes; n++)
+        {
+            int v = members[n][0];
+            now[n] = result[v] is { } w ? [.. w] : Influences(own, v);
+            moves[n] = members[n].Any(u => result[u] != null) && (held == null || !members[n].Any(held.Contains));
+        }
+
+        // The body share's SHAPE: its weights over their own sum.
+        Dictionary<string, float>? Shape(List<(string Bone, float W)> list)
+        {
+            float sum = 0f;
+            var d = new Dictionary<string, float>(StringComparer.Ordinal);
+            foreach (var (bone, w) in list)
+            {
+                if (!bodyBones.Contains(bone)) continue;
+                d[bone] = d.GetValueOrDefault(bone) + w;
+                sum += w;
+            }
+            if (sum <= 1e-6f) return null;
+            foreach (var bone in d.Keys.ToList()) d[bone] /= sum;
+            return d;
+        }
+
+        for (int round = 0; round < WeightSmoothRounds; round++)
+        {
+            var next = new List<(string Bone, float W)>?[nodes];
+            for (int n = 0; n < nodes; n++)
+            {
+                if (!moves[n] || adj[n].Count == 0 || Shape(now[n]) is not { } mine) continue;
+                var mean = new Dictionary<string, float>(StringComparer.Ordinal);
+                int counted = 0;
+                foreach (int m in adj[n])
+                {
+                    if (Shape(now[m]) is not { } theirs) continue;
+                    foreach (var (bone, w) in theirs) mean[bone] = mean.GetValueOrDefault(bone) + w;
+                    counted++;
+                }
+                if (counted == 0) continue;
+
+                var blended = new Dictionary<string, float>(StringComparer.Ordinal);
+                foreach (var (bone, w) in mine) blended[bone] = w * (1f - WeightSmoothRate);
+                foreach (var (bone, w) in mean)
+                    blended[bone] = blended.GetValueOrDefault(bone) + w / counted * WeightSmoothRate;
+
+                // The body share goes back in at its own size, after the vertex's own bones, within eight.
+                var keep = now[n].Where(i => !bodyBones.Contains(i.Bone)).ToList();
+                float share = 1f - keep.Sum(i => i.W);
+                int slots = MaxInfluences - keep.Count;
+                if (slots <= 0 || share <= 0f) continue;
+                var body = blended.Where(p => p.Value > 1e-4f).OrderByDescending(p => p.Value).Take(slots)
+                                  .Select(p => (p.Key, p.Value)).ToList();
+                next[n] = [.. keep, .. Normalised(body, share)];
+            }
+            for (int n = 0; n < nodes; n++)
+                if (next[n] is { } w) now[n] = w;
+        }
+
+        for (int n = 0; n < nodes; n++)
+        {
+            if (!moves[n]) continue;
+            foreach (int v in members[n])
+                if (held == null || !held.Contains(v)) result[v] = [.. now[n]];
+        }
     }
 
     /// <summary>Summed absolute difference between two vertices' influences, by bone name.</summary>
