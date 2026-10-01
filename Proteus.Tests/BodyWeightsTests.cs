@@ -128,7 +128,9 @@ public class BodyWeightsTests
                                        Weights: [("j_sk_b_a_l", 0.5f), ("j_kosi", 0.5f)])));
         var pairs = new[] { Pair(source, target) };
 
-        var plan = BodyRetarget.PlanWeights(garment, pairs);
+        // The rule underneath: cloth lying ON the body is now rigged as the body outright (see the tests below), which
+        // would hide it here, where every sheet lies 1 mm off.
+        var plan = BodyRetarget.WithTuning(NoHug, () => BodyRetarget.PlanWeights(garment, pairs));
         Assert.NotNull(plan);
         var rebuilt = BodyRetarget.Rebuild(garment, pairs, swapSkin: false, plan, out var report)!;
         Assert.Equal(0, report.Unplaced);
@@ -300,7 +302,9 @@ public class BodyWeightsTests
                 Weights: [("j_sk_b_a_l", 0.2f), ("j_sk_b_a_r", 0.2f), ("j_kosi", 0.6f)])));
         var pairs = new[] { Pair(source, target) };
 
-        BodyRetarget.Rebuild(garment, pairs, swapSkin: false, BodyRetarget.PlanWeights(garment, pairs),
+        // Off the body-following passes: on the body the cloth takes the body's four bones and nothing overflows.
+        BodyRetarget.Rebuild(garment, pairs, swapSkin: false,
+                             BodyRetarget.WithTuning(NoHug, () => BodyRetarget.PlanWeights(garment, pairs)),
                              out var report);
 
         Assert.True(report.Reweighted > 0, "the refit should have reweighted something");
@@ -317,7 +321,8 @@ public class BodyWeightsTests
         var pairs = new[] { Pair(Body(("j_kosi", 0.7f), ("j_mune_l", 0.3f)), Body(("j_mune_l", 0.6f), ("j_kosi", 0.4f))) };
 
         Assert.Null(BodyRetarget.PlanWeights(garment, pairs));                // within one body mod: the author's weights
-        var plan = BodyRetarget.PlanWeights(garment, pairs, acrossBodies: true);
+        // The change rule underneath, for cloth off the body: this sheet lies ON it, where it is now rigged as the body.
+        var plan = BodyRetarget.WithTuning(NoHug, () => BodyRetarget.PlanWeights(garment, pairs, acrossBodies: true));
         Assert.NotNull(plan);
 
         var rebuilt = BodyRetarget.Rebuild(garment, pairs, swapSkin: false, plan, out var report)!;
@@ -329,6 +334,47 @@ public class BodyWeightsTests
             Assert.Equal(0.3f, Weights(rebuilt)[v].Single(i => i.Bone == "j_mune_l").W, 2);
             Assert.Equal(0.7f, Weights(rebuilt)[v].Single(i => i.Bone == "j_kosi").W, 2);
         }
+    }
+
+    /// <summary>The rules for cloth off the body, with the passes for cloth lying on it switched off.</summary>
+    private static readonly BodyRetarget.Tuning NoHug = new(NoSkinHug: true);
+
+    [Fact]
+    public void Cloth_lying_on_the_body_is_rigged_as_the_body()
+    {
+        // 1 mm off: the skin's weights outright — the skirt's share gone, the body's taken whole, not the change between
+        // the bodies. Rigged the same, skin and cloth bend together in any pose.
+        var garment = SyntheticModel.Build([],
+            new SyntheticModel.Mesh(Cloth, new SyntheticModel.Sub(0, TrianglesPerIsland: 3, OffsetZ: 0.001f,
+                Weights: [("j_sk_b_a_l", 0.3f), ("j_kosi", 0.7f)])));
+        var pairs = new[] { Pair(Body(("j_kosi", 1f)), Body(("j_mune_l", 0.6f), ("j_kosi", 0.4f))) };
+
+        var plan = BodyRetarget.PlanWeights(garment, pairs, acrossBodies: true);
+        var rebuilt = BodyRetarget.Rebuild(garment, pairs, swapSkin: false, plan, out _)!;
+
+        foreach (int v in VerticesOf(garment, Cloth, 0))
+        {
+            var w = Weights(rebuilt)[v];
+            Assert.DoesNotContain(w, i => i.Bone == "j_sk_b_a_l");
+            Assert.Equal(0.6f, w.Single(i => i.Bone == "j_mune_l").W, 2);
+            Assert.Equal(0.4f, w.Single(i => i.Bone == "j_kosi").W, 2);
+        }
+    }
+
+    [Fact]
+    public void A_skirt_hanging_clear_of_the_body_keeps_its_own_bones()
+    {
+        // 3 cm off — past where the garment's own bones are taken off cloth near the body — the skirt still swings.
+        var garment = SyntheticModel.Build([],
+            new SyntheticModel.Mesh(Cloth, new SyntheticModel.Sub(0, TrianglesPerIsland: 3, OffsetZ: 0.03f,
+                Weights: [("j_sk_b_a_l", 0.3f), ("j_kosi", 0.7f)])));
+        var pairs = new[] { Pair(Body(("j_kosi", 1f)), Body(("j_mune_l", 0.6f), ("j_kosi", 0.4f))) };
+
+        var plan = BodyRetarget.PlanWeights(garment, pairs, acrossBodies: true);
+        var rebuilt = BodyRetarget.Rebuild(garment, pairs, swapSkin: false, plan, out _)!;
+
+        foreach (int v in VerticesOf(garment, Cloth, 0))
+            Assert.Equal(0.3f, Weights(rebuilt)[v].Single(i => i.Bone == "j_sk_b_a_l").W, 2);
     }
 
     [Fact]

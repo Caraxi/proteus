@@ -223,6 +223,13 @@ internal static partial class BodyRetarget
         // Smoothed before the layers are paired, so partners still come out identical.
         if (acrossBodies && !tuned.NoWeightSmooth) SmoothWeights(model, own, result, bodyBones, held);
 
+        // After the smoothing, which would otherwise take cloth lying on the skin off the skin's weights again.
+        if (!tuned.NoSkinHug)
+        {
+            FollowBodyNearSkin(model, own, targets, result, held);
+            DropOwnBonesNearBody(model, own, targets, result, bodyBones, held);
+        }
+
         reweighted += KeepLayersTogether(model, own, wasAt, result, held);
 
         // The garment's own body mesh. It IS the body, so it takes the new body's weights OUTRIGHT rather than the
@@ -481,6 +488,93 @@ internal static partial class BodyRetarget
             result[v] = [.. averaged];
         }
         return added;
+    }
+
+    /// <summary>Cloth this close to the new body follows the body alone (3 mm) — see <see cref="FollowBodyNearSkin"/>.</summary>
+    internal const float SkinHugFull = 0.003f;
+
+    /// <summary>Cloth this far off the new body keeps all of its own bones (6 mm); between the two they fade back in.</summary>
+    internal const float SkinHugFade = 0.006f;
+
+    /// <summary>
+    /// Cloth lying on the body moves exactly as the body does: within <see cref="SkinHugFull"/> of the new body a cloth
+    /// vertex takes the skin's weights under it outright, fading back to its own by <see cref="SkinHugFade"/>.
+    /// <para/>
+    /// Rigged the same, cloth and skin bend together and keep the gap between them in any pose; rigged even a little
+    /// apart, they part as soon as a joint turns, and on cloth lying on the skin that is skin through it. Two ways it
+    /// came apart on "Sirius" refitted onto YAB+ Large, the hip in game: the author weights a skirt's chain into the
+    /// cloth above it so the skirt hangs from the waist — 7-14% of the side and front skirt bones (<c>j_sk_s_a_l</c>,
+    /// <c>j_sk_f_a_l</c>) on cloth within 3 mm of the hip, which has none, and physics swung that strip off it; and with
+    /// the chain gone the cloth still bent apart from the thigh when the leg did, its weights a per-vertex reading of
+    /// the bodies (and smoothed after it) rather than the skin's own. The skirt further out still swings.
+    /// </summary>
+    /// <param name="result">New weights per vertex, null where the author's stand. Updated in place.</param>
+    private static void FollowBodyNearSkin(ModelParts model, XivLiveMesh.SkinnedMesh own,
+                                           List<(BodySurface Surface, XivLiveMesh.SkinnedMesh Skin)> targets,
+                                           (string Bone, float W)[]?[] result, IReadOnlySet<int>? held)
+    {
+        foreach (int v in ClothVertices(model))
+        {
+            if (held != null && held.Contains(v)) continue;
+            var p = new Vector3(model.Positions[v * 3], model.Positions[v * 3 + 1], model.Positions[v * 3 + 2]);
+            if (Nearest(targets, p, out float far) is not { Length: > 0 } body || far >= SkinHugFade) continue;
+
+            // How much of the cloth's own weighting stays: none on the body, all of it by the fade.
+            float keep = far <= SkinHugFull ? 0f : (far - SkinHugFull) / (SkinHugFade - SkinHugFull);
+            if (keep <= 0f)
+            {
+                result[v] = [.. body];
+                continue;
+            }
+            var now = result[v] is { } w ? w : [.. Influences(own, v)];
+            result[v] = MeshMath.BlendWeights(now, keep, body, 1f - keep, [], 0f, MaxInfluences);
+        }
+    }
+
+    /// <summary>Cloth this close to the new body carries none of the garment's own bones (12 mm) — see
+    /// <see cref="DropOwnBonesNearBody"/>.</summary>
+    internal const float OwnBoneFull = 0.012f;
+
+    /// <summary>Cloth this far off keeps all of the garment's own bones (20 mm); between, they fade back in.</summary>
+    internal const float OwnBoneFade = 0.02f;
+
+    /// <summary>
+    /// Keep the garment's own bones — a skirt's chain, a cape — off the cloth near the body: within
+    /// <see cref="OwnBoneFull"/> of the new body their share goes to the body bones the vertex already has, fading back to
+    /// the author's split by <see cref="OwnBoneFade"/>. <see cref="FollowBodyNearSkin"/> already rigs the cloth lying ON
+    /// the skin as the skin; this is the cloth a few millimetres off it, which still swings with the chain.
+    /// <para/>
+    /// "Sirius" on Rue+ Large still showed the hip through the cloth after the skin-following fix, where YAB+ Large —
+    /// the same cloth in the same place — did not: in the fade beyond 3 mm, Rue's reading of the bodies left up to 38% of
+    /// the side skirt bone (<c>j_sk_s_a_l</c>) on cloth 3-6 mm off the hip, YAB's 24%, and a third of a swinging chain on
+    /// cloth that close is the hip through it. The skirt hanging free of the body still swings.
+    /// </summary>
+    /// <param name="result">New weights per vertex, null where the author's stand. Updated in place.</param>
+    private static void DropOwnBonesNearBody(ModelParts model, XivLiveMesh.SkinnedMesh own,
+                                             List<(BodySurface Surface, XivLiveMesh.SkinnedMesh Skin)> targets,
+                                             (string Bone, float W)[]?[] result, IReadOnlySet<string> bodyBones,
+                                             IReadOnlySet<int>? held)
+    {
+        foreach (int v in ClothVertices(model))
+        {
+            if (held != null && held.Contains(v)) continue;
+            var p = new Vector3(model.Positions[v * 3], model.Positions[v * 3 + 1], model.Positions[v * 3 + 2]);
+            if (Nearest(targets, p, out float far) is not { Length: > 0 } body || far >= OwnBoneFade) continue;
+
+            var now = result[v] is { } w ? w.ToList() : Influences(own, v);
+            float ownShare = now.Where(i => !bodyBones.Contains(i.Bone)).Sum(i => i.W);
+            if (ownShare <= 1e-4f) continue;
+
+            float keep = far <= OwnBoneFull ? 0f : (far - OwnBoneFull) / (OwnBoneFade - OwnBoneFull);
+            var kept = now.Where(i => !bodyBones.Contains(i.Bone)).Select(i => (i.Bone, W: i.W * keep))
+                          .Where(i => i.W > 1e-4f).OrderByDescending(i => i.W).ToList();
+            var bodyPart = now.Where(i => bodyBones.Contains(i.Bone)).ToList();
+            if (bodyPart.Sum(i => i.W) <= 1e-4f) bodyPart = [.. body];   // nothing of its own on the body: the body's
+            int slots = MaxInfluences - kept.Count;
+            if (slots <= 0) continue;
+            var share = Normalised(bodyPart.OrderByDescending(i => i.W).Take(slots).ToList(), 1f - kept.Sum(i => i.W));
+            result[v] = [.. kept, .. share];
+        }
     }
 
     /// <summary>Rounds of <see cref="SmoothWeights"/>.</summary>

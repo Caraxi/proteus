@@ -305,6 +305,15 @@ internal static partial class BodyRetarget
         public Vector3 AtWith(int n, Vec3 delta)
             => new(sets.NodeAt[n].X + delta.X, sets.NodeAt[n].Y + delta.Y, sets.NodeAt[n].Z + delta.Z);
 
+        /// <summary>How far the drawn skin is through face <paramref name="f"/> of <see cref="Faces"/> — negative when it
+        /// is clear, by how much — and the face's way out; no way out when no skin is under it.</summary>
+        public (float Depth, Vector3 Outward) Signed(int f, Vec3[] nodeDelta)
+        {
+            var face = Faces[f];
+            return Through(drawn, Placed(sets, nodeDelta, face.A), Placed(sets, nodeDelta, face.B),
+                           Placed(sets, nodeDelta, face.C), face.EdgeA, face.EdgeB, face.EdgeC);
+        }
+
         /// <summary>How far the drawn skin is through triangle <paramref name="t"/> of <see cref="Tris"/>, 0 when clear.</summary>
         public float Depth(int t, Vec3[] nodeDelta)
         {
@@ -673,6 +682,22 @@ internal static partial class BodyRetarget
     private const int ClearFaceRounds = 8;
 
     /// <summary>
+    /// The most a face may ask of <see cref="ClearFaces"/> (2 mm, its depth plus the standoff — skin about a millimetre
+    /// through it): a face the skin is further through than that is not sagging into the skin between its corners, and
+    /// is left.
+    /// <para/>
+    /// What it was instead, on a corset: the breast the corset presses bulges up over its top edge, the rim band joins
+    /// the shell to the lining so its edges read as shared, and the bulge above the rim read as skin through the rim's
+    /// faces. Chasing it pushed the rim out by up to 20 mm — "Sirius" refitted to Neolithe S had cloth movement over the
+    /// top of the cups 13 mm out of line with its neighbours (5.9 without the pass), onto Rue+ Large 19: the jagged top
+    /// edge of the cups in game, back again after the layer guard.
+    /// </summary>
+    internal const float ClearFaceDeepest = 0.002f;
+
+    /// <summary>The most <see cref="ClearFaces"/> moves any one node in all, over every round (3 mm).</summary>
+    internal const float ClearFaceMost = 0.003f;
+
+    /// <summary>
     /// How far off the underside of the breast <see cref="LiftUnderbust"/> holds the cloth, whether or not the skin is
     /// through it yet (1 mm).
     /// <para/>
@@ -691,6 +716,79 @@ internal static partial class BodyRetarget
     /// sideways, are not counted.
     /// </summary>
     internal static bool IsUnderbust(Vector3 outward) => outward.Y < -0.4f && outward.Z > 0.1f;
+
+    /// <summary>How much of a point's skin must be weighted to the breast bones for <see cref="BreastTest"/> to call it the
+    /// breast (a third).</summary>
+    internal const float BreastWeight = 0.15f;
+
+    /// <summary>
+    /// Whether a point lies over the breast of the body in <paramref name="pair"/>: the skin nearest it (within 2 cm) is
+    /// weighted at least <see cref="BreastWeight"/> to the breast bones (<c>j_mune_*</c>, YAS's <c>iv_c_mune_*</c>). Read
+    /// off the body's own weights, so it is the same answer on every body mod however the breast is shaped. Null when the
+    /// pair carries no body file to read.
+    /// </summary>
+    internal static Func<Vector3, bool>? BreastTest(SlotPair pair)
+        => RegionTest([pair], bone => bone.Contains("mune", StringComparison.Ordinal), BreastWeight);
+
+    /// <summary>How far off the hip and upper thigh <see cref="LiftUnderbust"/> holds the cloth (3 mm).</summary>
+    /// <remarks>
+    /// The breast's 1 mm was not enough here: the hip bends with the leg, and on "Sirius" refitted onto YAB+ Large the
+    /// cloth over it — about 2 mm off at rest, and rigged exactly as the skin under it — still showed the hip through it
+    /// when the character sat. User's call in game: "pull it out a little bit".
+    /// </remarks>
+    internal const float HipClearance = 0.003f;
+
+    /// <summary>How much of a point's skin must be weighted to the pelvis, thigh and buttock bones for
+    /// <see cref="HipTest"/> to call it the hip (a half).</summary>
+    internal const float HipWeight = 0.5f;
+
+    /// <summary>
+    /// Whether a point lies over the side of the hip or the upper thigh of the bodies in <paramref name="pairs"/>: the skin
+    /// nearest it is weighted at least <see cref="HipWeight"/> to the pelvis (<c>j_kosi</c>), the thighs (<c>j_asi_a_*</c>)
+    /// or YAS's buttocks (<c>iv_shiri_*</c>), and it is off to the side — the middle, where the same bones rig the belly,
+    /// the crotch and the small of the back, is left. Null when no pair carries a body file.
+    /// </summary>
+    internal static Func<Vector3, bool>? HipTest(IReadOnlyList<SlotPair> pairs)
+    {
+        var test = RegionTest(pairs, bone => bone == "j_kosi" || bone.StartsWith("j_asi_a", StringComparison.Ordinal)
+                                             || bone.StartsWith("iv_shiri", StringComparison.Ordinal), HipWeight);
+        return test == null ? null : p => MathF.Abs(p.X) > 0.07f && test(p);
+    }
+
+    /// <summary>Whether the skin of <paramref name="pairs"/>' bodies nearest a point (within 2 cm) is weighted at least
+    /// <paramref name="least"/> to bones <paramref name="isBone"/> picks. Null when no pair carries a body file.</summary>
+    private static Func<Vector3, bool>? RegionTest(IEnumerable<SlotPair> pairs, Func<string, bool> isBone, float least)
+    {
+        var bodies = new List<(BodySurface Surface, float[] Share)>();
+        foreach (var pair in pairs)
+        {
+            if (pair.TargetModel == null || ModelSkinReader.Read(pair.TargetModel, null, null) is not { } skin
+                || skin.VertexCount * 3 != pair.Target.Positions.Length) continue;
+            var share = new float[skin.VertexCount];
+            for (int v = 0; v < skin.VertexCount; v++)
+                for (int k = 0; k < XivLiveMesh.SkinnedMesh.MaxInfluences; k++)
+                {
+                    float x = skin.BoneWeights[v * XivLiveMesh.SkinnedMesh.MaxInfluences + k];
+                    int b = skin.BoneIndices[v * XivLiveMesh.SkinnedMesh.MaxInfluences + k];
+                    if (x > 0f && b < skin.BoneNames.Length && isBone(skin.BoneNames[b])) share[v] += x;
+                }
+            bodies.Add((new BodySurface(pair.Target, BodySurface.CellFor(MeanEdgeOf(pair.Target))), share));
+        }
+        if (bodies.Count == 0) return null;
+        return p =>
+        {
+            float best = 0.02f, value = 0f;
+            bool found = false;
+            foreach (var (surface, share) in bodies)
+            {
+                if (!surface.Nearest(p, best, out var h)) continue;
+                best = h.Distance;
+                value = share[h.A] * h.U + share[h.B] * h.V + share[h.C] * h.W;
+                found = true;
+            }
+            return found && value >= least;
+        };
+    }
 
     /// <summary>How far round a face that needs lifting <see cref="LiftUnderbust"/> lifts the cloth with it (6 mm):
     /// past the thickness of a lined corset, so its lining and shell go up together.</summary>
@@ -720,9 +818,16 @@ internal static partial class BodyRetarget
     /// underbust vertex went from 1.0 mm off the skin to 3.3.
     /// </summary>
     /// <param name="drawn">The skin drawn under the garment — what the clearance is measured from.</param>
+    /// <param name="isBreast">Whether a point lies over the breast, read off the new body's own breast-bone weights
+    /// (see <see cref="BreastTest"/>); null to hold the underside alone. Over the breast it is each FACE that is held the
+    /// clearance off, at its deepest point, not just its corners: on "Sirius" refitted onto YAB+ Large, 351 visible faces
+    /// over the breast were within 1 mm of the skin (18 on Neolithe Large), and skin showed through them in game.</param>
     /// <returns>How many nodes it lifted.</returns>
+    /// <param name="isHip">Whether a point lies over the hip (see <see cref="HipTest"/>), whose faces are held
+    /// <see cref="HipClearance"/> off the same way; null to leave the hip.</param>
     internal static int LiftUnderbust(FaceCheck check, TargetBody drawn, Vec3[] nodeDelta, float[] pushedBy,
-                                      ref float worst, bool[]? stay = null)
+                                      ref float worst, bool[]? stay = null, Func<Vector3, bool>? isBreast = null,
+                                      Func<Vector3, bool>? isHip = null)
     {
         int count = check.NodeCount;
         var need = new float[count];
@@ -740,6 +845,32 @@ internal static partial class BodyRetarget
             need[n] = UnderbustClearance - s;
             dir[n] = hit.Normal;
             seeds.Add(n);
+        }
+
+        // And each face over the breast, at its deepest point. Not one the skin is more than a millimetre through: that
+        // is not cloth lying close but something else — the breast bulging over a corset's top edge — and chasing it
+        // jagged the rim (see ClearFaceDeepest).
+        if (isBreast != null || isHip != null)
+        {
+            for (int f = 0; f < check.Faces.Count; f++)
+            {
+                var face = check.Faces[f];
+                var centre = (check.At(face.A, nodeDelta) + check.At(face.B, nodeDelta) + check.At(face.C, nodeDelta)) / 3f;
+                float wanted = isBreast != null && isBreast(centre) ? UnderbustClearance
+                             : isHip != null && isHip(centre) ? HipClearance : 0f;
+                if (wanted <= 0f) continue;
+                var (depth, outward) = check.Signed(f, nodeDelta);
+                if (outward == default || depth > UnderbustClearance) continue;
+                float short_ = wanted + depth;   // clearance wanted, less the clearance it has
+                if (short_ <= 0f) continue;
+                foreach (int n in new[] { face.A, face.B, face.C })
+                {
+                    if (short_ <= need[n]) continue;
+                    if (need[n] == 0f) seeds.Add(n);
+                    need[n] = short_;
+                    dir[n] = outward;
+                }
+            }
         }
         if (seeds.Count == 0) return 0;
 
@@ -859,6 +990,7 @@ internal static partial class BodyRetarget
         var need = new float[count];
         var dir = new Vector3[count];
         var held = stay != null ? (bool[])stay.Clone() : new bool[count];
+        var cleared = new float[count];
         var touched = new List<int>();
         int newly = 0;
 
@@ -877,13 +1009,16 @@ internal static partial class BodyRetarget
             {
                 var face = check.Faces[f];
                 var (push, outward) = check.Need(face, nodeDelta, SettleTolerance);
-                if (push <= 0f) continue;
+                if (push <= 0f || push > ClearFaceDeepest) continue;   // not sag: see ClearFaceDeepest
                 foreach (int n in new[] { face.A, face.B, face.C })
                 {
                     if (held[n]) continue;
+                    // Never more than ClearFaceMost in all, over every round.
+                    float allowed = MathF.Min(push, ClearFaceMost - cleared[n]);
+                    if (allowed <= 0f) continue;
                     if (need[n] == 0f) touched.Add(n);
-                    if (push <= need[n]) continue;
-                    need[n] = push;
+                    if (allowed <= need[n]) continue;
+                    need[n] = allowed;
                     dir[n] = outward;
                 }
             }
@@ -955,6 +1090,7 @@ internal static partial class BodyRetarget
                 if (held[n]) continue;
                 if (pushedBy[n] <= 0f) newly++;
                 pushedBy[n] += need[n];
+                cleared[n] += need[n];
                 if (pushedBy[n] > worst) worst = pushedBy[n];
                 foreach (int f in check.FacesOf[n]) candidates.Add(f);
             }
