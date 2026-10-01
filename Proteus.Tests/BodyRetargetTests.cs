@@ -469,6 +469,68 @@ public class BodyRetargetTests
     private const float SheetZ = 0.201f;
 
     [Fact]
+    public void Two_pieces_side_by_side_keep_the_gap_between_them_where_the_body_stretches()
+    {
+        // Two strips 1 mm over the +Z face, 2 mm apart at x = 0, on a body three times as wide: every point of the face
+        // moves by twice its x, so the transfer alone carries the strips' inner edges to x = +-3 mm, a 6 mm gap where
+        // the author left 2 — skin through it in game ("Sirius", the corset's top edge over the blouse on YAB+ Large).
+        var garment = Strips(0.001f, 0.002f, 15, 10);
+        var body = Cube(0.20f, SkinMaterial);
+        var wide = Build(body.Positions.Select((p, i) => i % 3 == 0 ? p * 3f : p).ToArray(), body.Normals,
+                         body.Parts[0].Triangles, SkinMaterial);
+
+        float Gap(BodyRetarget.Solved s)
+        {
+            // The two inner edges: the column at x = -0.001 (vertex 0 of each row of A) and x = +0.001 (of B).
+            int row = 16, half = row * 11;
+            float worst = 0f;
+            for (int j = 0; j <= 10; j++)
+            {
+                int a = j * row, b = half + j * row;
+                worst = MathF.Max(worst, (At(garment, b) + Delta(s, b)).X - (At(garment, a) + Delta(s, a)).X);
+            }
+            return worst;
+        }
+
+        float knit = Gap(Solve(garment, body, wide));
+        float plain = BodyRetarget.WithTuning(new BodyRetarget.Tuning(NoLayerKnit: true), () => Gap(Solve(garment, body, wide)));
+
+        Assert.True(plain > 0.005f, $"without the layer knit the gap should open with the body, but it is {plain * 1000:F2} mm");
+        Assert.True(knit < 0.003f, $"the gap should stay near the 2 mm the author left, but it is {knit * 1000:F2} mm");
+    }
+
+    /// <summary>
+    /// Two flat strips over the +Z face, mirror images either side of x = 0, their inner edges at +-<paramref name="inner"/>:
+    /// each <paramref name="columns"/> x <paramref name="rows"/> quads of <paramref name="step"/>, strip A first, row by
+    /// row from its inner edge outward.
+    /// </summary>
+    private static ModelParts Strips(float inner, float step, int columns, int rows)
+    {
+        var pos = new List<float>();
+        var nrm = new List<float>();
+        var tris = new List<int>();
+        foreach (float side in new[] { -1f, 1f })
+        {
+            int baseVertex = pos.Count / 3;
+            for (int j = 0; j <= rows; j++)
+            for (int i = 0; i <= columns; i++)
+            {
+                pos.AddRange([side * (inner + i * step), (j - rows / 2f) * step, SheetZ]);
+                nrm.AddRange([0f, 0f, 1f]);
+            }
+            for (int j = 0; j < rows; j++)
+            for (int i = 0; i < columns; i++)
+            {
+                int p00 = baseVertex + j * (columns + 1) + i, p10 = p00 + 1, p01 = p00 + columns + 1, p11 = p01 + 1;
+                // Wound to face +Z on both sides.
+                if (side > 0) tris.AddRange([p00, p10, p11, p00, p11, p01]);
+                else tris.AddRange([p00, p11, p10, p00, p01, p11]);
+            }
+        }
+        return Build(pos.ToArray(), nrm.ToArray(), tris.ToArray(), ClothMaterial);
+    }
+
+    [Fact]
     public void Skin_the_refit_puts_through_the_middle_of_a_face_is_pushed_out()
     {
         // Every corner stays clear of the new body; its bump comes 2 mm through the face between them.

@@ -24,12 +24,14 @@ internal static partial class BodyRetarget
     /// <param name="NoRelax">Leave the cloth's movement as uneven as the transfer left it (see <see cref="Relax"/>).</param>
     /// <param name="NoSkinHug">Let cloth lying on the body keep the garment's own bones (see
     /// <see cref="FollowBodyNearSkin"/>).</param>
+    /// <param name="NoLayerKnit">Let each sheet of cloth take its own move from the bodies, however near another sheet
+    /// it lies (see <see cref="KnitLayers"/>).</param>
     internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
                                   float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
                                   float CopyTolerance = CopyToleranceDefault, bool NoGiveUp = false,
                                   bool NoSettle = false, bool NoFaceSettle = false, bool NoLayerGuard = false,
                                   bool NoWeightSmooth = false, bool NoUnderbustLift = false, bool NoRelax = false,
-                                  bool NoSkinHug = false);
+                                  bool NoSkinHug = false, bool NoLayerKnit = false);
 
     private static readonly Tuning DefaultTuning = new();
 
