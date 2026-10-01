@@ -16,10 +16,11 @@ internal static partial class BodyRetarget
     /// <param name="NoGiveUp">Leave folds the relax could not clear, rather than giving up their corners' movement.</param>
     /// <param name="NoSettle">Switch <see cref="Settle"/> off: leave whatever the push-out could not clear.</param>
     /// <param name="NoFaceSettle">Settle vertices only, leaving skin the push gave up on through a face's middle.</param>
+    /// <param name="NoLayerGuard">Let <see cref="ClearFaces"/> push one layer of cloth through another.</param>
     internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
                                   float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
                                   float CopyTolerance = CopyToleranceDefault, bool NoGiveUp = false,
-                                  bool NoSettle = false, bool NoFaceSettle = false);
+                                  bool NoSettle = false, bool NoFaceSettle = false, bool NoLayerGuard = false);
 
     private static readonly Tuning DefaultTuning = new();
 

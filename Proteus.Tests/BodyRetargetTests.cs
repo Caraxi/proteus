@@ -547,6 +547,38 @@ public class BodyRetargetTests
     }
 
     [Fact]
+    public void Clearing_faces_never_pushes_a_lining_through_its_shell()
+    {
+        // A lining 1 mm over the face with the bump 2 mm through it, and a shell 1.5 mm over the lining. Clearing the
+        // lining's face takes its corners 3 mm out, straight through the shell — which in game is the lining poking
+        // through the outside of the garment. The skin through a lining the shell covers was never seen; it stays.
+        const float shellZ = SheetZ + 0.0015f;
+        float[] pos =
+        [
+            -0.15f, -0.15f, SheetZ, 0.15f, -0.15f, SheetZ, 0f, 0.15f, SheetZ,
+            -0.18f, -0.18f, shellZ, 0.18f, -0.18f, shellZ, 0f, 0.18f, shellZ,
+        ];
+        float[] nrm = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
+        var garment = Build(pos, nrm, [0, 1, 2, 3, 4, 5], ClothMaterial);
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(0.003f));
+
+        float worst = 0f;
+        BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst);
+
+        for (int v = 0; v < 3; v++)
+        {
+            float z = At(garment, v).Z + delta[sets.NodeOf[v]].Z;
+            Assert.True(z < shellZ, $"lining corner {v} went through the shell, to z={z:F5}");
+        }
+
+        // And it is the guard that holds it: without it the lining does go through.
+        var (check2, delta2, sets2) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(0.003f));
+        BodyRetarget.WithTuning(new BodyRetarget.Tuning(NoLayerGuard: true),
+            () => BodyRetarget.ClearFaces(check2, delta2, new float[sets2.NodeCount], ref worst));
+        Assert.Contains(Enumerable.Range(0, 3), v => At(garment, v).Z + delta2[sets2.NodeOf[v]].Z > shellZ);
+    }
+
+    [Fact]
     public void Clearing_faces_leaves_what_it_is_told_to_keep()
     {
         var garment = Sheet(new(-0.15f, -0.15f, SheetZ), new(0.15f, -0.15f, SheetZ), new(0f, 0.15f, SheetZ));

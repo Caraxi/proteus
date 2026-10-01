@@ -219,6 +219,10 @@ internal static partial class BodyRetarget
         /// <summary>Per node, the indices into <see cref="Tris"/> it is a corner of.</summary>
         public readonly List<int>[] TrisOf;
 
+        /// <summary>Per triangle of <see cref="Tris"/>: every corner is cloth.</summary>
+        public readonly List<bool> IsCloth = [];
+
+
         public FaceCheck(Sets sets, IReadOnlyList<int> nodes, TargetBody before, TargetBody after, float[] authored,
                          bool clearBody)
         {
@@ -271,6 +275,7 @@ internal static partial class BodyRetarget
                 Tris.Add((a, b, c));
                 triEdges.Add((edgeA, edgeB, edgeC));
                 bool isCloth = cloth[a] && cloth[b] && cloth[c];
+                IsCloth.Add(isCloth);
                 Unliftable.Add(isCloth);   // until it is found to be a face below
 
                 if (!considered[a] || !considered[b] || !considered[c]) continue;
@@ -283,6 +288,13 @@ internal static partial class BodyRetarget
                 Unliftable[^1] = false;
             }
         }
+
+        /// <summary>Where node <paramref name="n"/> stands now.</summary>
+        public Vector3 At(int n, Vec3[] nodeDelta) => Placed(sets, nodeDelta, n);
+
+        /// <summary>Where node <paramref name="n"/> stands with <paramref name="delta"/> applied.</summary>
+        public Vector3 AtWith(int n, Vec3 delta)
+            => new(sets.NodeAt[n].X + delta.X, sets.NodeAt[n].Y + delta.Y, sets.NodeAt[n].Z + delta.Z);
 
         /// <summary>How far the drawn skin is through triangle <paramref name="t"/> of <see cref="Tris"/>, 0 when clear.</summary>
         public float Depth(int t, Vec3[] nodeDelta)
@@ -740,6 +752,24 @@ internal static partial class BodyRetarget
             while (changed)
             {
                 changed = false;
+
+                // Through another layer of cloth: put back. A lined or layered garment's inner layer sits nearer the
+                // skin than its shell, so it is the layer the skin comes through, and pushed clear of the skin it went
+                // straight through the shell — skin through a lining the shell covers was never seen, a lining through
+                // the shell is. Measured on "Sirius" (a corset, Neolithe XS to S): 211 of the 439 nodes this pass moved
+                // went through the layer over them, up to 10.6 mm, the jagged top edge of the cups in game. Carrying the
+                // layer in front along instead was measured and is worse everywhere (lumpier, deeper, more faces through).
+                var cloth = Tuned.NoLayerGuard ? [] : ClothGrid(check, nodeDelta);
+                foreach (int n in touched)
+                {
+                    if (Tuned.NoLayerGuard) break;
+                    if (held[n] || !was.TryGetValue(n, out var back)) continue;
+                    if (CrossedCloth(check, cloth, nodeDelta, n, check.AtWith(n, back), check.At(n, nodeDelta)) < 0) continue;
+                    nodeDelta[n] = back;
+                    held[n] = true;
+                    changed = true;
+                }
+
                 foreach (int n in touched)
                 {
                     if (held[n]) continue;
@@ -772,6 +802,79 @@ internal static partial class BodyRetarget
             }
         }
         return newly;
+    }
+
+    /// <summary>Grid cell <see cref="ClothGrid"/> buckets cloth triangles by (10 mm).</summary>
+    private const float ClothCell = 0.01f;
+
+    /// <summary>The garment's cloth triangles where they stand now, bucketed by every cell their bounds touch.</summary>
+    private static Dictionary<(int, int, int), List<int>> ClothGrid(FaceCheck check, Vec3[] nodeDelta)
+    {
+        var grid = new Dictionary<(int, int, int), List<int>>();
+        for (int t = 0; t < check.Tris.Count; t++)
+        {
+            if (!check.IsCloth[t]) continue;
+            var (a, b, c) = check.Tris[t];
+            Vector3 pa = check.At(a, nodeDelta), pb = check.At(b, nodeDelta), pc = check.At(c, nodeDelta);
+            var lo = Vector3.Min(pa, Vector3.Min(pb, pc));
+            var hi = Vector3.Max(pa, Vector3.Max(pb, pc));
+            for (int x = (int)MathF.Floor(lo.X / ClothCell); x <= (int)MathF.Floor(hi.X / ClothCell); x++)
+            for (int y = (int)MathF.Floor(lo.Y / ClothCell); y <= (int)MathF.Floor(hi.Y / ClothCell); y++)
+            for (int z = (int)MathF.Floor(lo.Z / ClothCell); z <= (int)MathF.Floor(hi.Z / ClothCell); z++)
+            {
+                if (!grid.TryGetValue((x, y, z), out var bucket)) grid[(x, y, z)] = bucket = [];
+                bucket.Add(t);
+            }
+        }
+        return grid;
+    }
+
+    /// <summary>
+    /// The cloth triangle node <paramref name="n"/> passes through, moving from <paramref name="from"/> to
+    /// <paramref name="to"/> — one it is not a corner of, where that triangle stands now — or -1.
+    /// </summary>
+    private static int CrossedCloth(FaceCheck check, Dictionary<(int, int, int), List<int>> grid, Vec3[] nodeDelta,
+                                    int n, Vector3 from, Vector3 to)
+    {
+        var seg = to - from;
+        if (seg.LengthSquared() < 1e-14f) return -1;
+        var lo = Vector3.Min(from, to);
+        var hi = Vector3.Max(from, to);
+        var seen = new HashSet<int>();
+        for (int x = (int)MathF.Floor(lo.X / ClothCell); x <= (int)MathF.Floor(hi.X / ClothCell); x++)
+        for (int y = (int)MathF.Floor(lo.Y / ClothCell); y <= (int)MathF.Floor(hi.Y / ClothCell); y++)
+        for (int z = (int)MathF.Floor(lo.Z / ClothCell); z <= (int)MathF.Floor(hi.Z / ClothCell); z++)
+        {
+            if (!grid.TryGetValue((x, y, z), out var bucket)) continue;
+            foreach (int t in bucket)
+            {
+                if (!seen.Add(t)) continue;
+                var (a, b, c) = check.Tris[t];
+                if (a == n || b == n || c == n) continue;
+                if (SegmentHits(from, seg, check.At(a, nodeDelta), check.At(b, nodeDelta), check.At(c, nodeDelta)))
+                    return t;
+            }
+        }
+        return -1;
+    }
+
+    /// <summary>Möller–Trumbore: whether the segment from + s·seg, s in (0, 1], meets triangle abc.</summary>
+    private static bool SegmentHits(Vector3 from, Vector3 seg, Vector3 a, Vector3 b, Vector3 c)
+    {
+        var e1 = b - a;
+        var e2 = c - a;
+        var p = Vector3.Cross(seg, e2);
+        float det = Vector3.Dot(e1, p);
+        if (MathF.Abs(det) < 1e-14f) return false;
+        float inv = 1f / det;
+        var s = from - a;
+        float u = Vector3.Dot(s, p) * inv;
+        if (u < 0f || u > 1f) return false;
+        var q = Vector3.Cross(s, e1);
+        float v = Vector3.Dot(seg, q) * inv;
+        if (v < 0f || u + v > 1f) return false;
+        float t = Vector3.Dot(e2, q) * inv;
+        return t > 1e-4f && t <= 1f;
     }
 
     /// <summary>Rounds of push-then-smooth <see cref="Settle"/> gets.</summary>
