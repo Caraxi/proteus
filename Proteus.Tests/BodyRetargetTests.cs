@@ -469,6 +469,68 @@ public class BodyRetargetTests
     private const float SheetZ = 0.201f;
 
     [Fact]
+    public void Two_pieces_side_by_side_keep_the_gap_between_them_where_the_body_stretches()
+    {
+        // Two strips 1 mm over the +Z face, 2 mm apart at x = 0, on a body three times as wide: every point of the face
+        // moves by twice its x, so the transfer alone carries the strips' inner edges to x = +-3 mm, a 6 mm gap where
+        // the author left 2 — skin through it in game ("Sirius", the corset's top edge over the blouse on YAB+ Large).
+        var garment = Strips(0.001f, 0.002f, 15, 10);
+        var body = Cube(0.20f, SkinMaterial);
+        var wide = Build(body.Positions.Select((p, i) => i % 3 == 0 ? p * 3f : p).ToArray(), body.Normals,
+                         body.Parts[0].Triangles, SkinMaterial);
+
+        float Gap(BodyRetarget.Solved s)
+        {
+            // The two inner edges: the column at x = -0.001 (vertex 0 of each row of A) and x = +0.001 (of B).
+            int row = 16, half = row * 11;
+            float worst = 0f;
+            for (int j = 0; j <= 10; j++)
+            {
+                int a = j * row, b = half + j * row;
+                worst = MathF.Max(worst, (At(garment, b) + Delta(s, b)).X - (At(garment, a) + Delta(s, a)).X);
+            }
+            return worst;
+        }
+
+        float knit = Gap(Solve(garment, body, wide));
+        float plain = BodyRetarget.WithTuning(new BodyRetarget.Tuning(NoLayerKnit: true), () => Gap(Solve(garment, body, wide)));
+
+        Assert.True(plain > 0.005f, $"without the layer knit the gap should open with the body, but it is {plain * 1000:F2} mm");
+        Assert.True(knit < 0.003f, $"the gap should stay near the 2 mm the author left, but it is {knit * 1000:F2} mm");
+    }
+
+    /// <summary>
+    /// Two flat strips over the +Z face, mirror images either side of x = 0, their inner edges at +-<paramref name="inner"/>:
+    /// each <paramref name="columns"/> x <paramref name="rows"/> quads of <paramref name="step"/>, strip A first, row by
+    /// row from its inner edge outward.
+    /// </summary>
+    private static ModelParts Strips(float inner, float step, int columns, int rows)
+    {
+        var pos = new List<float>();
+        var nrm = new List<float>();
+        var tris = new List<int>();
+        foreach (float side in new[] { -1f, 1f })
+        {
+            int baseVertex = pos.Count / 3;
+            for (int j = 0; j <= rows; j++)
+            for (int i = 0; i <= columns; i++)
+            {
+                pos.AddRange([side * (inner + i * step), (j - rows / 2f) * step, SheetZ]);
+                nrm.AddRange([0f, 0f, 1f]);
+            }
+            for (int j = 0; j < rows; j++)
+            for (int i = 0; i < columns; i++)
+            {
+                int p00 = baseVertex + j * (columns + 1) + i, p10 = p00 + 1, p01 = p00 + columns + 1, p11 = p01 + 1;
+                // Wound to face +Z on both sides.
+                if (side > 0) tris.AddRange([p00, p10, p11, p00, p11, p01]);
+                else tris.AddRange([p00, p11, p10, p00, p01, p11]);
+            }
+        }
+        return Build(pos.ToArray(), nrm.ToArray(), tris.ToArray(), ClothMaterial);
+    }
+
+    [Fact]
     public void Skin_the_refit_puts_through_the_middle_of_a_face_is_pushed_out()
     {
         // Every corner stays clear of the new body; its bump comes 2 mm through the face between them.
@@ -480,6 +542,138 @@ public class BodyRetargetTests
         var q = BrushTransfer.ClosestOnTriangle(new Vector3(0f, 0f, 0.203f), corners[0], corners[1], corners[2],
                                                 out _, out _, out _);
         Assert.True(q.Z >= 0.203f, $"the face still passes under the bump's top, at z={q.Z:F5}");
+    }
+
+    /// <summary>
+    /// The face test and push of <see cref="BodyRetarget.ClearFaces"/>, set up the way the push-out sets them up: the
+    /// garment where it was authored, over <paramref name="source"/> then <paramref name="target"/>.
+    /// </summary>
+    private static (BodyRetarget.FaceCheck Check, SecondSkinWriter.Vec3[] Delta, BodyRetarget.Sets Sets) FaceSetup(
+        ModelParts garment, ModelParts source, ModelParts target)
+    {
+        Assert.True(IdentityCorrespondence.TryBuild(source, target, "chest", out var built, out string refusal), refusal);
+        BodyRetarget.SlotPair[] pairs = [new("_top", built!, target)];
+        var sets = BodyRetarget.Sets.From(garment);
+        var before = BodyRetarget.TargetBody.Build(pairs, null, null, before: true);
+        var after = BodyRetarget.TargetBody.Build(pairs, null, null, before: false);
+        var authored = new float[sets.NodeCount];
+        Array.Fill(authored, float.MaxValue);
+        var check = new BodyRetarget.FaceCheck(sets, sets.ClothNodes, before, after, authored, clearBody: false);
+        return (check, new SecondSkinWriter.Vec3[sets.NodeCount], sets);
+    }
+
+    [Fact]
+    public void Clearing_faces_lifts_a_face_the_skin_is_still_through()
+    {
+        // What the push-out's fold guard leaves behind: every corner clear, the bump 0.8 mm through the middle.
+        var garment = Sheet(new(-0.15f, -0.15f, SheetZ), new(0.15f, -0.15f, SheetZ), new(0f, 0.15f, SheetZ));
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(SagBump));
+        Assert.True(check.Need(check.Faces[0], delta).Push > 0f, "the bump should start out through the face");
+
+        float worst = 0f;
+        int pushed = BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst);
+
+        Assert.Equal(3, pushed);
+        Assert.Equal(0f, check.Need(check.Faces[0], delta, 1e-4f).Push);
+        var corners = Enumerable.Range(0, 3).Select(v =>
+        {
+            var d = delta[sets.NodeOf[v]];
+            return At(garment, v) + new Vector3(d.X, d.Y, d.Z);
+        }).ToArray();
+        const float top = 0.20f + SagBump;
+        var q = BrushTransfer.ClosestOnTriangle(new Vector3(0f, 0f, top), corners[0], corners[1], corners[2],
+                                                out _, out _, out _);
+        Assert.True(q.Z >= top, $"the face still passes under the bump's top, at z={q.Z:F5}");
+    }
+
+    /// <summary>A bump on the cube's +Z face that comes 0.8 mm through a <see cref="Sheet"/>: sag, which
+    /// <see cref="BodyRetarget.ClearFaces"/> clears (it asks 1.8 mm, under <see cref="BodyRetarget.ClearFaceDeepest"/>).</summary>
+    private const float SagBump = 0.0018f;
+
+    [Fact]
+    public void Clearing_faces_leaves_a_face_the_skin_is_deep_through()
+    {
+        // 3 mm through is not sag. On a corset it was the breast bulging over the top edge, read as through the rim's
+        // faces, and chasing it pushed the rim out 20 mm: the jagged top edge of the cups.
+        var garment = Sheet(new(-0.15f, -0.15f, SheetZ), new(0.15f, -0.15f, SheetZ), new(0f, 0.15f, SheetZ));
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(0.004f));
+        Assert.True(check.Need(check.Faces[0], delta).Push > BodyRetarget.ClearFaceDeepest);
+
+        float worst = 0f;
+        Assert.Equal(0, BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst));
+        Assert.All(delta, d => Assert.Equal(default, d));
+    }
+
+    [Fact]
+    public void Clearing_faces_never_turns_a_neighbour_over()
+    {
+        // The same face, with a pleat standing 1 mm up off its near edge and leaning 0.5 mm out past it. Lifting the
+        // edge's two corners the 1.8 mm the face needs takes them above the pleat's top and tips it onto its back,
+        // which draws black: the face has to stay through rather than fold its neighbour.
+        float[] pos =
+        [
+            -0.15f, -0.15f, SheetZ, 0.15f, -0.15f, SheetZ, 0f, 0.15f, SheetZ,
+            0f, -0.1505f, SheetZ + 0.001f,
+        ];
+        float[] nrm = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, -1, 0];
+        var garment = Build(pos, nrm, [0, 1, 2, 1, 0, 3], ClothMaterial);
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(SagBump));
+
+        float worst = 0f;
+        BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst);
+
+        Assert.Equal(0, Folded(garment, delta, sets));
+        Assert.Equal(default, delta[sets.NodeOf[0]]);
+        Assert.Equal(default, delta[sets.NodeOf[1]]);
+    }
+
+    [Fact]
+    public void Clearing_faces_never_pushes_a_lining_through_its_shell()
+    {
+        // A lining with the bump 0.8 mm through it, and a shell 1.5 mm over the lining, clear of the bump itself.
+        // Clearing the lining's face takes its corners 1.8 mm out, straight through the shell — which in game is the
+        // lining poking through the outside of the garment. The skin through a lining the shell covers was never seen;
+        // it stays.
+        const float shellZ = SheetZ + 0.0015f;
+        float[] pos =
+        [
+            -0.15f, -0.15f, SheetZ, 0.15f, -0.15f, SheetZ, 0f, 0.15f, SheetZ,
+            -0.18f, -0.18f, shellZ, 0.18f, -0.18f, shellZ, 0f, 0.18f, shellZ,
+        ];
+        float[] nrm = [0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 1];
+        var garment = Build(pos, nrm, [0, 1, 2, 3, 4, 5], ClothMaterial);
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(SagBump));
+
+        float worst = 0f;
+        BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst);
+
+        for (int v = 3; v < 6; v++) Assert.Equal(default, delta[sets.NodeOf[v]]);   // the shell is clear: never moved
+        for (int v = 0; v < 3; v++)
+        {
+            float z = At(garment, v).Z + delta[sets.NodeOf[v]].Z;
+            Assert.True(z < shellZ, $"lining corner {v} went through the shell, to z={z:F5}");
+        }
+
+        // And it is the guard that holds it: without it the lining does go through.
+        var (check2, delta2, sets2) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(SagBump));
+        BodyRetarget.WithTuning(new BodyRetarget.Tuning(NoLayerGuard: true),
+            () => BodyRetarget.ClearFaces(check2, delta2, new float[sets2.NodeCount], ref worst));
+        Assert.Contains(Enumerable.Range(0, 3), v => At(garment, v).Z + delta2[sets2.NodeOf[v]].Z > shellZ);
+    }
+
+    [Fact]
+    public void Clearing_faces_leaves_what_it_is_told_to_keep()
+    {
+        var garment = Sheet(new(-0.15f, -0.15f, SheetZ), new(0.15f, -0.15f, SheetZ), new(0f, 0.15f, SheetZ));
+        var (check, delta, sets) = FaceSetup(garment, Cube(0.20f, SkinMaterial), Bumped(SagBump));
+        var stay = new bool[sets.NodeCount];
+        stay[sets.NodeOf[2]] = true;
+
+        float worst = 0f;
+        BodyRetarget.ClearFaces(check, delta, new float[sets.NodeCount], ref worst, stay);
+
+        Assert.Equal(default, delta[sets.NodeOf[2]]);
+        Assert.True(delta[sets.NodeOf[0]].Z > 0f, "the corners it may move should still have been lifted");
     }
 
     [Fact]

@@ -15,10 +15,23 @@ internal static partial class BodyRetarget
     /// garment's own skin.</param>
     /// <param name="NoGiveUp">Leave folds the relax could not clear, rather than giving up their corners' movement.</param>
     /// <param name="NoSettle">Switch <see cref="Settle"/> off: leave whatever the push-out could not clear.</param>
+    /// <param name="NoFaceSettle">Settle vertices only, leaving skin the push gave up on through a face's middle.</param>
+    /// <param name="NoLayerGuard">Let <see cref="ClearFaces"/> push one layer of cloth through another.</param>
+    /// <param name="NoWeightSmooth">Leave each cloth vertex's new weights as its own lookup gave them
+    /// (see <see cref="SmoothWeights"/>).</param>
+    /// <param name="NoUnderbustLift">Leave cloth resting on the underside of the breast where it lands
+    /// (see <see cref="UnderbustClearance"/>).</param>
+    /// <param name="NoRelax">Leave the cloth's movement as uneven as the transfer left it (see <see cref="Relax"/>).</param>
+    /// <param name="NoSkinHug">Let cloth lying on the body keep the garment's own bones (see
+    /// <see cref="FollowBodyNearSkin"/>).</param>
+    /// <param name="NoLayerKnit">Let each sheet of cloth take its own move from the bodies, however near another sheet
+    /// it lies (see <see cref="KnitLayers"/>).</param>
     internal sealed record Tuning(bool NoFollow = false, bool NoOwnSkinWeights = false,
                                   float OwnSkinReach = OwnSkinReachDefault, float CopyReach = CopyReachDefault,
                                   float CopyTolerance = CopyToleranceDefault, bool NoGiveUp = false,
-                                  bool NoSettle = false);
+                                  bool NoSettle = false, bool NoFaceSettle = false, bool NoLayerGuard = false,
+                                  bool NoWeightSmooth = false, bool NoUnderbustLift = false, bool NoRelax = false,
+                                  bool NoSkinHug = false, bool NoLayerKnit = false);
 
     private static readonly Tuning DefaultTuning = new();
 

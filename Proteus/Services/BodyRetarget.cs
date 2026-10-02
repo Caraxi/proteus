@@ -629,6 +629,9 @@ internal static partial class BodyRetarget
 
         Transfer(sets, sets.AllNodes, source, nodeDelta, snapped, out int transferred, out int missed);
         Knit(sets, nodeDelta, snapped);
+        // After the knit, which evens each sheet out along itself and would take the sheets apart again.
+        var layers = Tuned.NoLayerKnit ? null : LayerPartners(sets, snapped);
+        if (layers != null) KnitLayers(sets, layers, nodeDelta);
 
         // With the skin replaced, the garment's OWN slot body is drawn after all — Rebuild embeds that very mesh in the
         // garment, so it is what the cloth ends up lying against. Asking for the swap is not enough: Rebuild only swaps
@@ -651,6 +654,8 @@ internal static partial class BodyRetarget
         int pushed = 0;
         float worstPush = 0f;
         TargetBody? drawn = null;
+        FaceCheck? faceCheck = null;
+        float[]? pushedBy = null;
         if (pushOut)
         {
             // The skin drawn under the cloth once it is worn, as authored and after the refit: the garment's own body
@@ -675,7 +680,8 @@ internal static partial class BodyRetarget
             foreach (int n in sets.ClothNodes)
                 if (!snapped[n]) pushable.Add(n);
 
-            pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush);
+            pushed = PushOut(sets, pushable, before, after, nodeDelta, clearBody, out worstPush, out faceCheck,
+                             out pushedBy);
             drawn = after;
 
             // The push moves points one by one, and bent the pieces straight back: whole again, around where it put them.
@@ -685,6 +691,37 @@ internal static partial class BodyRetarget
         // Last, once nothing else will move: the answer is only worth having if the mesh still reads front-side out.
         // Past the push-out, so whatever unfolding gives up is judged against the skin it would be given up into.
         int folded = Unfold(sets, nodeDelta, snapped, drawn == null ? null : SignedOff(drawn));
+
+        // Skin through the middle of a face, which the push-out's fold guard gave up on: cleared last, after the relax
+        // (which only keeps VERTICES out of the skin), by a pass that turns nothing over, so the fold count above still
+        // stands. Hard pieces stay as they were put. See ClearFaces.
+        bool[]? stay = null;
+        if (keepShape is { Count: > 0 })
+        {
+            stay = new bool[sets.NodeCount];
+            foreach (var piece in keepShape)
+                foreach (int v in piece)
+                    if (v >= 0 && v < sets.NodeOf.Length) stay[sets.NodeOf[v]] = true;
+        }
+
+        // Movement out of line with its neighbours evened out, snapped cloth included — see Relax.
+        if (drawn != null && !Tuned.NoRelax) Relax(sets, nodeDelta, SignedOff(drawn), stay, layers);
+
+        if (faceCheck != null && pushedBy != null && !Tuned.NoFaceSettle)
+        {
+            // The underside of the breast first, every layer together; then whatever face is still through.
+            // Tops only: on legs, skin facing down and forward is the crease under the belly, not a breast.
+            if (!Tuned.NoUnderbustLift && drawn != null && garmentSlot == "_top")
+            {
+                // The breast read off the new chest's own weights, where the swap will draw that chest.
+                var chest = ownSlotSwapped ? pairs.FirstOrDefault(p => p.Slot == garmentSlot && p.TargetModel != null) : default;
+                var isBreast = chest.TargetModel != null ? BreastTest(chest) : null;
+                // The hip across every body in play: it spans the chest's skin and the legs' beside it.
+                var isHip = HipTest(pairs);
+                pushed += LiftUnderbust(faceCheck, drawn, nodeDelta, pushedBy, ref worstPush, stay, isBreast, isHip);
+            }
+            pushed += ClearFaces(faceCheck, nodeDelta, pushedBy, ref worstPush, stay);
+        }
 
         // Never write a NaN into the file: one spreads through every smoothing pass it touches, and the model it lands in
         // draws nothing there and threw every frame from the Parts preview. A node with no finite answer stays put.
@@ -992,6 +1029,309 @@ internal static partial class BodyRetarget
                                    nodeDelta[n].Z + (z / count - nodeDelta[n].Z) * KnitRate);
             }
             Array.Copy(next, nodeDelta, nodeDelta.Length);
+        }
+    }
+
+    /// <summary>How near two cloth points of different sheets have to sit, as authored, for <see cref="KnitLayers"/> to
+    /// pair them (6 mm); within half of it a partner counts in full, fading to nothing at the edge.</summary>
+    internal const float LayerKnitReach = 0.006f;
+
+    /// <summary>How much longer than the straight line the way along the cloth has to be for two points to be on
+    /// different sheets (3x). Along one sheet the two are about the same.</summary>
+    internal const float LayerKnitDetour = 3f;
+
+    /// <summary>Rounds of <see cref="KnitLayers"/>: each takes partners most of the way to one move.</summary>
+    internal const int LayerKnitRounds = 4;
+
+    /// <summary>
+    /// Keep the space between two pieces of cloth what the author left it where the body stretches under both: every
+    /// cloth point with partners — points within <see cref="LayerKnitReach"/> of it as authored that the cloth itself
+    /// only reaches the long way round (<see cref="LayerKnitDetour"/>): another piece beside or over it, the far side
+    /// of a fold — is given the average of its move and theirs, and the correction is spread along each piece over
+    /// <see cref="LayerKnitSpread"/>, fading out, so the stretch goes into the cloth rather than the space between.
+    /// <para/>
+    /// The transfer gives every point the body's own change under it, and where the body grows a lot over a short
+    /// distance that change stretches everything on it — including the gap between two pieces. Measured on "Sirius" (a
+    /// corset over a blouse, both one mesh) from Neolithe Pushup XS to YAB+ Large: the skin across the top of the breast
+    /// stretches about three times over, and the 2-4 mm between the corset's top edge and the blouse opened to 16 mm;
+    /// the skin showed through the slit in game. <see cref="Knit"/> and <see cref="Relax"/> even each piece out along
+    /// itself and cannot see the other one; run before them, this was undone by them. So it runs after the knit, the
+    /// relax counts the same partners among its neighbours, and the change is spread rather than put on the edge alone
+    /// — an edge moved by itself is a step the relax smooths straight back out.
+    /// <para/>
+    /// The garment's own body mesh neither moves nor counts — it is laid onto the new body exactly (see
+    /// <see cref="LaySkin"/>). Against "This Old Thing"'s hand-made sizes the cloth error does not change (mean within
+    /// 0.005 mm on every pair measured).
+    /// </summary>
+    private static void KnitLayers(Sets sets, List<(int Node, float W)>?[] partners, Vec3[] nodeDelta)
+    {
+        var isSkin = new bool[sets.NodeCount];
+        foreach (int n in sets.SkinNodes) isSkin[n] = true;
+        var moving = new bool[sets.NodeCount];
+        foreach (int n in sets.AllNodes) moving[n] = !isSkin[n];
+
+        // The band the correction spreads through: cloth within LayerKnitSpread of a partnered point, along the cloth.
+        var way = new float[sets.NodeCount];
+        Array.Fill(way, float.MaxValue);
+        var queue = new PriorityQueue<int, float>();
+        for (int n = 0; n < partners.Length; n++)
+            if (partners[n] != null && moving[n]) { way[n] = 0f; queue.Enqueue(n, 0f); }
+        if (queue.Count == 0) return;
+        while (queue.TryDequeue(out int a, out float at))
+        {
+            if (at > way[a]) continue;
+            foreach (int b in sets.Adj[a])
+            {
+                if (!moving[b]) continue;
+                float to = at + Vector3.Distance(ToVector(sets.NodeAt[a]), ToVector(sets.NodeAt[b]));
+                if (to > LayerKnitSpread || to >= way[b]) continue;
+                way[b] = to;
+                queue.Enqueue(b, to);
+            }
+        }
+        var band = new List<int>();
+        for (int n = 0; n < sets.NodeCount; n++)
+            if (way[n] <= LayerKnitSpread && partners[n] == null) band.Add(n);
+
+        var fix = new Vector3[sets.NodeCount];
+        var next = new Vector3[sets.NodeCount];
+        for (int round = 0; round < LayerKnitRounds; round++)
+        {
+            // What each partnered point should move by: its own move and its partners', weighted by nearness.
+            Array.Clear(fix);
+            for (int n = 0; n < partners.Length; n++)
+            {
+                if (partners[n] is not { } list || !moving[n]) continue;
+                var sum = ToVector(nodeDelta[n]);
+                float total = 1f;
+                foreach (var (m, w) in list) { sum += ToVector(nodeDelta[m]) * w; total += w; }
+                fix[n] = sum / total - ToVector(nodeDelta[n]);
+            }
+
+            // Spread smoothly into the band, to nothing at its far edge, so neither sheet gets a step where it stops.
+            for (int it = 0; it < LayerKnitSmoothRounds; it++)
+            {
+                Array.Copy(fix, next, fix.Length);
+                foreach (int n in band)
+                {
+                    var sum = Vector3.Zero;
+                    int count = 0;
+                    foreach (int m in sets.Adj[n])
+                    {
+                        if (!moving[m]) continue;
+                        sum += way[m] <= LayerKnitSpread ? fix[m] : Vector3.Zero;
+                        count++;
+                    }
+                    if (count > 0) next[n] = sum / count;
+                }
+                Array.Copy(next, fix, fix.Length);
+            }
+
+            for (int n = 0; n < sets.NodeCount; n++)
+                if (moving[n] && way[n] <= LayerKnitSpread)
+                    nodeDelta[n] = new Vec3(nodeDelta[n].X + fix[n].X, nodeDelta[n].Y + fix[n].Y, nodeDelta[n].Z + fix[n].Z);
+        }
+    }
+
+    /// <summary>How far along the cloth <see cref="KnitLayers"/> spreads its correction from where two sheets meet
+    /// (15 mm), so the stretch the body asks for goes into the cloth rather than the space between the sheets.</summary>
+    internal const float LayerKnitSpread = 0.015f;
+
+    /// <summary>Rounds of neighbour-averaging that spread the correction across <see cref="LayerKnitSpread"/>.</summary>
+    internal const int LayerKnitSmoothRounds = 40;
+
+    /// <summary>
+    /// Each cloth node's partners for <see cref="KnitLayers"/>, weighted by nearness: the points within
+    /// <see cref="LayerKnitReach"/> of it as authored that the cloth only reaches the long way round. Null for a node
+    /// with none, and for a node that landed on the body exactly, which is a partner to others but takes no average of
+    /// its own (the spread still reaches it). The garment's own body mesh and held nodes are neither.
+    /// </summary>
+    private static List<(int Node, float W)>?[] LayerPartners(Sets sets, bool[] snapped)
+    {
+        var isSkin = new bool[sets.NodeCount];
+        foreach (int n in sets.SkinNodes) isSkin[n] = true;
+        var cloth = new List<int>(sets.AllNodes.Length);
+        foreach (int n in sets.AllNodes)
+            if (!isSkin[n]) cloth.Add(n);
+
+        (int, int, int) Cell(Vec3 p) => ((int)MathF.Floor(p.X / LayerKnitReach), (int)MathF.Floor(p.Y / LayerKnitReach),
+                                         (int)MathF.Floor(p.Z / LayerKnitReach));
+        var grid = new Dictionary<(int, int, int), List<int>>();
+        foreach (int n in cloth)
+        {
+            var c = Cell(sets.NodeAt[n]);
+            if (!grid.TryGetValue(c, out var bucket)) grid[c] = bucket = [];
+            bucket.Add(n);
+        }
+
+        var partners = new List<(int Node, float W)>?[sets.NodeCount];
+        var near = new List<(int Node, float D)>();
+        var way = new Dictionary<int, float>();
+        var queue = new PriorityQueue<int, float>();
+        foreach (int n in cloth)
+        {
+            if (snapped[n]) continue;
+            var p = ToVector(sets.NodeAt[n]);
+            var (cx, cy, cz) = Cell(sets.NodeAt[n]);
+            near.Clear();
+            float farthest = 0f;
+            for (int x = cx - 1; x <= cx + 1; x++)
+            for (int y = cy - 1; y <= cy + 1; y++)
+            for (int z = cz - 1; z <= cz + 1; z++)
+            {
+                if (!grid.TryGetValue((x, y, z), out var bucket)) continue;
+                foreach (int m in bucket)
+                {
+                    if (m == n) continue;
+                    float d = Vector3.Distance(p, ToVector(sets.NodeAt[m]));
+                    if (d >= LayerKnitReach) continue;
+                    near.Add((m, d));
+                    farthest = MathF.Max(farthest, d);
+                }
+            }
+            if (near.Count == 0) continue;
+
+            // The way along the cloth, as far as it could matter.
+            float limit = farthest * LayerKnitDetour;
+            way.Clear();
+            queue.Clear();
+            way[n] = 0f;
+            queue.Enqueue(n, 0f);
+            while (queue.TryDequeue(out int a, out float at))
+            {
+                if (at > way[a]) continue;
+                foreach (int b in sets.Adj[a])
+                {
+                    float to = at + Vector3.Distance(ToVector(sets.NodeAt[a]), ToVector(sets.NodeAt[b]));
+                    if (to > limit || (way.TryGetValue(b, out float had) && had <= to)) continue;
+                    way[b] = to;
+                    queue.Enqueue(b, to);
+                }
+            }
+
+            List<(int, float)>? list = null;
+            foreach (var (m, d) in near)
+            {
+                if (isSkin[m]) continue;
+                if (way.TryGetValue(m, out float along) && along <= d * LayerKnitDetour) continue;
+                (list ??= []).Add((m, MathF.Min(1f, 2f * (1f - d / LayerKnitReach))));
+            }
+            partners[n] = list;
+        }
+        return partners;
+    }
+
+    /// <summary>How far out of line with its neighbours a cloth node's movement must be for <see cref="Relax"/> to take
+    /// it in (0.5 mm).</summary>
+    internal const float RelaxThreshold = 5e-4f;
+
+    /// <summary>Rounds of <see cref="Relax"/>.</summary>
+    internal const int RelaxRounds = 6;
+
+    /// <summary>How far each <see cref="Relax"/> round takes a node toward its neighbours' movement (half way).</summary>
+    internal const float RelaxRate = 0.5f;
+
+    /// <summary>
+    /// Even out the cloth's movement where it is out of line with its neighbours: each cloth node moving more than
+    /// <see cref="RelaxThreshold"/> differently from its neighbours' average is taken part way toward it, a few rounds.
+    /// The movement, not the position, is what is smoothed, so the author's own folds and edges ride along.
+    /// <para/>
+    /// <see cref="Knit"/> already does this right after the transfer, but leaves out every node the transfer landed on
+    /// a body vertex exactly — and a garment authored hugging the skin is a mix of those and nodes between them. On a
+    /// corset the top of the cups came out jagged in game ("Sirius", every size): the snapped nodes jumped to the new
+    /// body's vertices, the ones between followed the field, and nothing evened the two out. So here snapped cloth is
+    /// relaxed too; the garment's own body mesh, which has to stay on the body, and held nodes are not.
+    /// <para/>
+    /// A node never comes closer to the drawn skin than <see cref="Clearance"/> (or than it already is, where that is
+    /// less), and a round that turns a triangle over is taken back for that triangle's corners. Runs after the fold relax and before the underbust lift and <see cref="ClearFaces"/>,
+    /// which have the last word on clearance.
+    /// </summary>
+    /// <param name="signedOff">How far a point is outside the drawn skin (negative inside); null when there is none.</param>
+    /// <param name="stay">Nodes it may not move — the hard pieces.</param>
+    /// <returns>How many nodes it moved.</returns>
+    /// <param name="layers">Each node's partners on other sheets (see <see cref="LayerPartners"/>), which count among its
+    /// neighbours by their weight: relaxed toward its own sheet alone, a sheet laid over another is evened out along
+    /// itself and drifts from the one under it. Null for none.</param>
+    internal static int Relax(Sets sets, Vec3[] nodeDelta, Func<Vector3, float>? signedOff, bool[]? stay = null,
+                              List<(int Node, float W)>?[]? layers = null)
+    {
+        var isSkin = new bool[sets.NodeCount];
+        foreach (int n in sets.SkinNodes) isSkin[n] = true;
+        var moved = new bool[sets.NodeCount];
+
+        for (int round = 0; round < RelaxRounds; round++)
+        {
+            var was = new Dictionary<int, Vec3>();
+            var next = new Dictionary<int, Vec3>();
+            foreach (int n in sets.ClothNodes)
+            {
+                if (isSkin[n] || (stay != null && stay[n]) || sets.Adj[n] is not { Count: > 0 } neighbours) continue;
+                float x = 0f, y = 0f, z = 0f, count = neighbours.Count;
+                foreach (int m in neighbours) { x += nodeDelta[m].X; y += nodeDelta[m].Y; z += nodeDelta[m].Z; }
+                if (layers?[n] is { } partners)
+                    foreach (var (m, w) in partners)
+                    {
+                        x += nodeDelta[m].X * w; y += nodeDelta[m].Y * w; z += nodeDelta[m].Z * w;
+                        count += w;
+                    }
+                float inv = 1f / count;
+                var off = new Vector3(x * inv - nodeDelta[n].X, y * inv - nodeDelta[n].Y, z * inv - nodeDelta[n].Z);
+                if (off.Length() <= RelaxThreshold) continue;
+                var d = nodeDelta[n];
+                var to = new Vec3(d.X + off.X * RelaxRate, d.Y + off.Y * RelaxRate, d.Z + off.Z * RelaxRate);
+                // Never closer to the skin than the clearance, or than it already is where that is less. Only keeping
+                // it out of the skin let the relax lay cloth down on it, clear at rest and through it as soon as a pose
+                // pressed the two together: on "Sirius" refitted to Rue+ Large the visible cloth within 0.3 mm of the
+                // skin went from 4 to 23, and skin showed through the top of the breasts and the hips in game.
+                if (signedOff != null)
+                {
+                    var p0 = Placed(sets, nodeDelta, n);
+                    var p1 = new Vector3(sets.NodeAt[n].X + to.X, sets.NodeAt[n].Y + to.Y, sets.NodeAt[n].Z + to.Z);
+                    float s0 = signedOff(p0), s1 = signedOff(p1);
+                    if (s1 < MathF.Min(s0, Clearance)) continue;
+                }
+                next[n] = to;
+            }
+            if (next.Count == 0) break;
+
+            // Folds the round would make before it is applied, so its triangles can be taken back.
+            var before = new bool[sets.Tris.Length / 3];
+            for (int t = 0; t < before.Length; t++) before[t] = TriTurnedOver(sets, nodeDelta, t);
+            foreach (var (n, d) in next)
+            {
+                was[n] = nodeDelta[n];
+                nodeDelta[n] = d;
+            }
+            for (int t = 0; t < before.Length; t++)
+            {
+                if (before[t] || !TriTurnedOver(sets, nodeDelta, t)) continue;
+                for (int k = 0; k < 3; k++)
+                {
+                    int v = sets.Tris[t * 3 + k];
+                    if (v < 0 || v >= sets.NodeOf.Length) continue;
+                    int n = sets.NodeOf[v];
+                    if (was.TryGetValue(n, out var back)) nodeDelta[n] = back;
+                }
+            }
+            foreach (var n in next.Keys)
+                if (!was.TryGetValue(n, out var back) || !back.Equals(nodeDelta[n])) moved[n] = true;
+        }
+        return moved.Count(m => m);
+
+        // Facing the other way from how the author drew it.
+        static bool TriTurnedOver(Sets sets, Vec3[] nodeDelta, int t)
+        {
+            int va = sets.Tris[t * 3], vb = sets.Tris[t * 3 + 1], vc = sets.Tris[t * 3 + 2];
+            if (va < 0 || vb < 0 || vc < 0
+                || va >= sets.NodeOf.Length || vb >= sets.NodeOf.Length || vc >= sets.NodeOf.Length) return false;
+            int a = sets.NodeOf[va], b = sets.NodeOf[vb], c = sets.NodeOf[vc];
+            if (a == b || b == c || c == a) return false;
+            var at = ToVector(sets.NodeAt[a]);
+            var n0 = Vector3.Cross(ToVector(sets.NodeAt[b]) - at, ToVector(sets.NodeAt[c]) - at);
+            if (n0.Length() <= 1e-12f) return false;
+            var to = Placed(sets, nodeDelta, a);
+            var n1 = Vector3.Cross(Placed(sets, nodeDelta, b) - to, Placed(sets, nodeDelta, c) - to);
+            return Vector3.Dot(n0, n1) <= 0f;
         }
     }
 

@@ -23,6 +23,7 @@ public partial class CompositorService
             private IReadOnlyDictionary<string, HashSet<string>>? bodyShapes;
             private HashSet<string>? hostMtrl;
             private List<EquippedSlotVariants.Slot>? slotVariants;
+            private HashSet<string>? hiddenParts;
             private SecondSkinService.Result? shells;
 
             public ShellPhase(CompositeRun run)
@@ -226,23 +227,83 @@ public partial class CompositorService
                 // Used only for the folder; the rest of the composite keeps keying off activeMtrl.
                 hostMtrl = run.activeMtrl;
                 slotVariants = null;
+                string? metaBlob = null;
+                bool liveRead = false;
                 try
                 {
                     var live = Plugin.Framework.RunOnFrameworkThread(() =>
                     {
                         var player = Plugin.ObjectTable.LocalPlayer;
                         return (Materials: run.compositor.penumbra.GetActivePlayerMaterialPaths(),
-                                Slots: Interop.EquippedSlotVariants.Read(player?.Address ?? 0));
+                                Slots: Interop.EquippedSlotVariants.Read(player?.Address ?? 0),
+                                Meta: run.compositor.penumbra.GetPlayerMetaManipulations());
                     }).GetAwaiter().GetResult();
                     // Empty is a mid-teardown walk; the snapshot is the better answer then.
                     if (live.Materials is { Count: > 0 }) hostMtrl = live.Materials;
                     slotVariants = live.Slots;
+                    metaBlob = live.Meta;
+                    liveRead = true;
                 }
                 // Everything, cancellation included: this read has a fallback.
                 catch (Exception ex)
                 {
-                    run.compositor.log.Debug("[Proteus] second skin: live host-variant read could not run ({0})",
-                        ex.GetType().Name);
+                    run.compositor.log.Debug("[Proteus] second skin: live host-variant and EQP read could not run ({0}) — "
+                            + "treating every body slot as drawn", ex.GetType().Name);
+                }
+                hiddenParts = liveRead ? ReadHiddenParts(metaBlob) : null;
+            }
+
+            /// <summary>
+            /// The body slots the worn gear's EQP hides (see <see cref="EqpVisibility"/>): a top shipping its own legs still
+            /// has the pants model loaded, and a shell cut from it lies over the top's legs. Null, hiding nothing, when the
+            /// override blob cannot be read: a misread must never cost the character a limb.
+            /// </summary>
+            private HashSet<string>? ReadHiddenParts(string? metaBlob)
+            {
+                try
+                {
+                    if (metaBlob == null)
+                    {
+                        // PenumbraBridge has already logged why (unavailable, or the IPC threw).
+                        run.compositor.log.Information("[Proteus] second skin: Penumbra returned no meta manipulations — "
+                                      + "treating every body slot as drawn");
+                        return null;
+                    }
+                    var overrides = EqpVisibility.ParsePenumbraEqp(metaBlob);
+                    if (overrides == null)
+                    {
+                        run.compositor.log.Information("[Proteus] second skin: Penumbra's EQP overrides are in a form "
+                                      + "Proteus does not read — treating every body slot as drawn");
+                        return null;
+                    }
+                    int SetOf(string part)
+                    {
+                        if (slotVariants?.FirstOrDefault(s => s.Suffix == part) is { SetId: > 0 } live) return live.SetId;
+                        return equippedModels.TryGetValue(part, out var path)
+                            ? PenumbraManipulations.ParseSetId(path, 'e') ?? 0 : 0;
+                    }
+                    int top = SetOf("top"), dwn = SetOf("dwn");
+                    var vanilla = Plugin.DataManager.GetFile(EqpVisibility.VanillaEqpPath)?.Data;
+                    bool unknown = false;
+                    var hidden = EqpVisibility.HiddenParts(top, dwn, (set, slot) =>
+                    {
+                        if (EqpVisibility.Entry(set, slot, overrides, vanilla) is { } e) return e;
+                        unknown = true;
+                        return ulong.MaxValue;   // unknown reads as "shows everything"
+                    });
+                    if (unknown)
+                        run.compositor.log.Information("[Proteus] second skin: vanilla EQP table unreadable — "
+                                      + "treating uncovered body slots as drawn");
+                    if (hidden.Count > 0)
+                        run.compositor.log.Information("[Proteus] second skin: EQP hides [{0}] (top e{1:D4}, legs e{2:D4}) — "
+                                      + "no shell is cut from those slots",
+                            string.Join(", ", hidden.OrderBy(p => p, StringComparer.Ordinal)), top, dwn);
+                    return hidden;
+                }
+                catch (Exception ex)
+                {
+                    run.compositor.log.Warning(ex, "[Proteus] second skin: EQP visibility read failed — treating every body slot as drawn");
+                    return null;
                 }
             }
 
@@ -265,7 +326,8 @@ public partial class CompositorService
                     run.facePlan.UpstreamModels,
                     // The size the prefetch above warmed at — see `gs`.
                     shellTexSize: gs,
-                    equippedSlotVariants: slotVariants);
+                    equippedSlotVariants: slotVariants,
+                    hiddenParts: hiddenParts);
             }
 
             private void ApplyShells()
